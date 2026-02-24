@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Reports — Nidigo Finance</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body data-page="reports">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="bi bi-bank2"></i></div>
+    <div class="brand-text">
+      <p class="brand-name">Nidigo</p>
+      <span class="brand-sub">Finance System</span>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="dashboard.html" class="nav-link"><i class="bi bi-grid-1x2"></i><span>Dashboard</span></a>
+    <div class="nav-section-label">Finance</div>
+    <a href="income.html"   class="nav-link"><i class="bi bi-arrow-down-circle"></i><span>Add Income</span></a>
+    <a href="expense.html"  class="nav-link"><i class="bi bi-arrow-up-circle"></i><span>Add Expense</span></a>
+    <div class="nav-section-label">Tools</div>
+    <a href="calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
+    <a href="reports.html"  class="nav-link active"><i class="bi bi-file-earmark-bar-graph"></i><span>Reports</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="#" class="nav-link btn-logout"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a>
+  </div>
+</aside>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-title">Reports</div>
+  <div class="topbar-right">
+    <span class="topbar-date" id="topbarDate"></span>
+    <button class="mode-toggle" title="Toggle theme"><i class="bi bi-moon-stars-fill"></i></button>
+    <div class="topbar-user">
+      <div class="avatar">A</div>
+      <span class="user-name">Admin</span>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main-content">
+  <div class="page-body">
+
+    <div class="page-header">
+      <h2>Financial Reports</h2>
+      <p>Full transaction ledger with filters and summary analysis.</p>
+    </div>
+
+    <!-- Mini Summary Cards -->
+    <div class="row g-3 section-gap">
+      <div class="col-6 col-xl-3">
+        <div class="stat-card income" style="padding:18px 20px">
+          <div class="card-label">Filtered Income</div>
+          <div class="card-value" id="sumIncome" style="font-size:1.45rem">₨ 0</div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat-card expense" style="padding:18px 20px">
+          <div class="card-label">Filtered Expenses</div>
+          <div class="card-value" id="sumExpense" style="font-size:1.45rem">₨ 0</div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-3">
+        <div class="stat-card balance" style="padding:18px 20px">
+          <div class="card-label">Net Balance</div>
+          <div class="card-value" id="sumBalance" style="font-size:1.45rem">₨ 0</div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-3 d-flex align-items-center">
+        <button onclick="window.print()"
+          style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-sm);
+                 padding:11px 20px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;
+                 color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;
+                 transition:all 0.2s;width:100%;justify-content:center;"
+          onmouseover="this.style.background='var(--surface-2)'"
+          onmouseout="this.style.background='transparent'">
+          <i class="bi bi-printer"></i> Print Report
+        </button>
+      </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="reports-card">
+      <div class="reports-header">
+        <h5 style="margin:0;font-family:'Inter',sans-serif;font-weight:700;font-size:0.95rem">
+          <i class="bi bi-table me-2" style="color:var(--text-muted)"></i>Transaction Ledger
+        </h5>
+        <div class="filter-bar">
+          <select id="filterType" title="Filter by type">
+            <option value="all">All Types</option>
+            <option value="income">Income Only</option>
+            <option value="expense">Expenses Only</option>
+          </select>
+          <input type="month" id="filterMonth" title="Filter by month"/>
+          <button class="btn-filter" id="btnFilter">
+            <i class="bi bi-funnel me-1"></i>Filter
+          </button>
+          <button id="btnReset"
+            style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-xs);
+                   padding:8px 14px;font-family:'Inter',sans-serif;font-size:0.84rem;
+                   color:var(--text-muted);cursor:pointer;transition:all 0.2s;"
+            onmouseover="this.style.background='var(--surface-2)'"
+            onmouseout="this.style.background='transparent'">
+            <i class="bi bi-x-lg"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="txn-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th><i class="bi bi-calendar3 me-1"></i>Date</th>
+              <th><i class="bi bi-arrow-left-right me-1"></i>Type</th>
+              <th><i class="bi bi-person me-1"></i>Source / Title</th>
+              <th><i class="bi bi-tag me-1"></i>Category</th>
+              <th><i class="bi bi-currency-rupee me-1"></i>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="reportsTbody">
+            <tr><td colspan="6" class="no-data"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── IMPROVED TRANSPARENCY FOOTER ─────────────────── -->
+    <div class="report-footer">
+
+      <div class="report-footer-header">
+        <div class="report-footer-icon">
+          <i class="bi bi-shield-check"></i>
+        </div>
+        <div>
+          <div class="report-footer-title">Nidigo Transparency Commitment</div>
+          <div class="report-footer-sub">Financial Integrity &amp; Accountability Statement</div>
+        </div>
+      </div>
+
+      <div class="report-footer-body">
+        All financial transactions recorded in this system are maintained in strict accordance with
+        <strong>NGO transparency and accountability standards</strong>. Every income entry is linked to a
+        verifiable source — whether a donor, grant body, or government authority — and every expense is
+        categorized for clear audit traceability.
+        <br/><br/>
+        This ledger is available for review by <strong>stakeholders, registered donors, partner organizations,
+        and regulatory authorities</strong> upon formal request. Nidigo is committed to ensuring that every
+        rupee received is accounted for and every expenditure is justified against organizational objectives.
+        <br/><br/>
+        <strong>Data integrity</strong> is maintained through periodic internal audits. All records are
+        timestamped and stored securely. Unauthorized modification of financial records is strictly prohibited
+        and subject to organizational disciplinary action.
+      </div>
+
+      <div class="report-footer-pills">
+        <div class="rf-pill"><i class="bi bi-check-circle-fill"></i> Audit-Ready Records</div>
+        <div class="rf-pill"><i class="bi bi-lock-fill"></i> Secure Data Storage</div>
+        <div class="rf-pill"><i class="bi bi-people-fill"></i> Donor Transparency</div>
+        <div class="rf-pill"><i class="bi bi-clipboard-check-fill"></i> Regulatory Compliant</div>
+        <div class="rf-pill"><i class="bi bi-clock-history"></i> Timestamped Entries</div>
+        <div class="rf-pill"><i class="bi bi-bar-chart-fill"></i> Category Traceability</div>
+      </div>
+
+    </div><!-- /.report-footer -->
+
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
