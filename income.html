@@ -40,10 +40,24 @@
   <div class="topbar-right">
     <span class="topbar-date" id="topbarDate"></span>
     <button class="mode-toggle" title="Toggle theme"><i class="bi bi-moon-stars-fill"></i></button>
-    <div class="topbar-user">
-      <div class="avatar">A</div>
-      <span class="user-name">Admin</span>
-    </div>
+    <div class="topbar-user" id="userMenu">
+
+<div class="avatar" id="adminAvatar">A</div>
+<span class="user-name" id="adminName">Admin</span>
+
+<div class="user-dropdown" id="userDropdown">
+
+<p id="dropdownName" style="margin:0;font-weight:bold"></p>
+
+<hr>
+
+<button onclick="logoutAdmin()">
+<i class="bi bi-box-arrow-right"></i> Logout
+</button>
+
+</div>
+
+</div>
   </div>
 </header>
 
@@ -162,5 +176,35 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/script.js"></script>
+<script>
+document.getElementById("incomeForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const data = {
+        date: document.getElementById("incDate").value,
+        category: document.getElementById("incCategory").value,
+        source: document.getElementById("incSource").value,
+        amount: document.getElementById("incAmount").value,
+        description: document.getElementById("incDesc").value
+    };
+
+    const response = await fetch("/user/income", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        alert("Income saved successfully");
+        document.getElementById("incomeForm").reset();
+    } else {
+        alert("Error saving income");
+    }
+});
+</script>
 </body>
 </html>

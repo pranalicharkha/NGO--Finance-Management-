@@ -24,81 +24,93 @@
     <p class="lp-desc">
       A professional finance management platform built for NGOs — track every rupee, build donor trust, and generate audit-ready reports.
     </p>
-
-    <div class="lp-features">
-      <div class="lp-feat-item"><i class="bi bi-shield-check"></i>Secure admin-only access</div>
-      <div class="lp-feat-item"><i class="bi bi-graph-up-arrow"></i>Live income &amp; expense tracking</div>
-      <div class="lp-feat-item"><i class="bi bi-calendar3"></i>Calendar-based financial view</div>
-      <div class="lp-feat-item"><i class="bi bi-file-earmark-bar-graph"></i>Instant transparency reports</div>
-    </div>
   </div>
 
   <!-- RIGHT: Login Form -->
   <div class="login-panel-right">
-    <div class="login-mode-btn">
-      <button class="mode-toggle" title="Toggle dark/light mode">
-        <i class="bi bi-moon-stars-fill"></i>
-      </button>
-    </div>
-
     <div class="login-form-wrap">
-      <a href="index.html" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:0.82rem;margin-bottom:20px;transition:color 0.2s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
-        <i class="bi bi-arrow-left"></i> Back to portal selection
-      </a>
 
       <h2>Admin Sign In</h2>
       <p class="subtitle">Access the Nidigo admin dashboard.</p>
 
-      <div class="alert-ngo" id="loginError" style="display:none;"></div>
+      <!-- Error message -->
+      <div class="alert alert-danger" id="loginError" style="display:none;"></div>
 
-      <form id="loginForm" novalidate>
-        <div class="form-group mb-3">
-          <label class="form-label" for="username">
-            <i class="bi bi-person-badge me-1"></i>Username
-          </label>
-          <input type="text" id="username" class="form-control"
-            placeholder="Enter username" autocomplete="username" required/>
+      <form id="loginForm">
+        <div class="mb-3">
+          <label for="username" class="form-label">Username</label>
+          <input type="text" id="username" class="form-control" required>
         </div>
 
-        <div class="form-group mb-4">
-          <label class="form-label" for="password">
-            <i class="bi bi-lock me-1"></i>Password
-          </label>
-          <div style="position:relative;">
-            <input type="password" id="password" class="form-control"
-              placeholder="Enter password" style="padding-right:44px;"
-              autocomplete="current-password" required/>
-            <button type="button" id="togglePwd"
-              style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;">
-              <i class="bi bi-eye" id="eyeIcon"></i>
-            </button>
-          </div>
+        <div class="mb-4">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" id="password" class="form-control" required>
         </div>
 
-        <button type="submit" class="btn-primary-ngo">
-          <i class="bi bi-box-arrow-in-right me-2"></i>Sign In to Admin Panel
+        <button type="submit" class="btn btn-primary w-100">
+          Sign In
         </button>
       </form>
 
-      <div class="login-hint">
-        Demo &nbsp;·&nbsp; User: <strong>admin</strong> &nbsp;·&nbsp; Pass: <strong>admin123</strong>
+      <div class="mt-3 text-center">
+        Demo: admin / admin123
       </div>
+
     </div>
   </div>
 
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js"></script>
+
+<!-- ========================= -->
+<!-- Backend Login Connection -->
+<!-- ========================= -->
 <script>
-  document.getElementById('togglePwd').addEventListener('click', function() {
-    const inp  = document.getElementById('password');
-    const icon = document.getElementById('eyeIcon');
-    const show = inp.type === 'password';
-    inp.type   = show ? 'text' : 'password';
-    icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-  });
+window.addEventListener("DOMContentLoaded", function () {
+
+    const form = document.getElementById("loginForm");
+
+    form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const errorBox = document.getElementById("loginError");
+
+        try {
+            const response = await fetch("/admin/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+            console.log("Login response:", data);
+
+            if (data.success) {
+                // Save username from backend
+                sessionStorage.setItem("adminUser", username);
+
+                // Redirect to dashboard
+                window.location.href = "/dashboard.html";
+            } 
+            else {
+                errorBox.style.display = "block";
+                errorBox.innerText = data.message || "Invalid username or password";
+            }
+
+        } catch (error) {
+            console.error("Error:", error);
+            errorBox.style.display = "block";
+            errorBox.innerText = "Server not reachable. Please start backend.";
+        }
+    });
+
+});
 </script>
+
 </body>
 </html>
