@@ -1,150 +1,86 @@
-// ================= SAFE IMPORTS =================
-let express, mongoose;
-
-try {
-    express = require("express");
-    mongoose = require("mongoose");
-} catch (err) {
-    console.log("❌ Required modules not installed!");
-    console.log("👉 Run: npm install express mongoose");
-    process.exit(1);
-}
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const mysql = require("mysql2");
+require("dotenv").config();
 
 const app = express();
+
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// ================= DATABASE CONNECTION =================
-mongoose.connect("mongodb://127.0.0.1:27017/financeDB")
-.then(() => console.log("✅ Database Connected"))
-.catch(err => console.log("❌ DB Error:", err.message));
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, "..")));
 
-// ================= USER MODEL =================
-const userSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true
-    },
-    email: {
-        type: String,
-        unique: true,
-        required: true
-    },
-    password: {
-        type: String,
-        required: true
+// MySQL Database Connection
+const db = mysql.createConnection({
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "",
+    database: process.env.DB_NAME || "finance_management"
+});
+
+db.connect((err) => {
+    if (err) {
+        console.log("MySQL Connection Failed:", err.message);
+    } else {
+        console.log("Connected to MySQL Database");
     }
 });
 
-const User = mongoose.model("User", userSchema);
+// Import Routes
+const adminRoutes = require("./routes/adminRoutes");
+const adminUserRoutes = require("./routes/adminUserRoutes");
+const userTransactionRoutes = require("./routes/userTransactionRoutes");
 
-// ================= ROUTES =================
+// Use Routes
+app.use("/admin", adminRoutes);
+app.use("/admin", adminUserRoutes);
+app.use("/user", userTransactionRoutes);
 
-// ✅ Default route (to check server)
+// Login Route
+app.post("/login", (req, res) => {
+    const { username, password } = req.body;
+
+    const sql = "SELECT * FROM admins WHERE username = ? AND password = ?";
+
+    db.query(sql, [username, password], (err, results) => {
+        if (err) {
+            console.log("Database Error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+
+        if (results.length > 0) {
+            return res.json({
+                success: true,
+                message: "Login successful"
+            });
+        } else {
+            return res.json({
+                success: false,
+                message: "Invalid username or password"
+            });
+        }
+    });
+});
+
+// Homepage Route
 app.get("/", (req, res) => {
-    res.send("🚀 Admin User Management API Running");
+    res.sendFile(path.join(__dirname, "..", "admin-login.html"));
 });
 
-// ✅ POST → Add User
-app.post("/admin/users", async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
-
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                message: "All fields are required"
-            });
-        }
-
-        const newUser = new User({ name, email, password });
-        await newUser.save();
-
-        res.status(201).json({
-            message: "User added successfully",
-            data: newUser
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Error adding user",
-            error: error.message
-        });
-    }
+// Dashboard Route
+app.get("/dashboard", (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "dashboard.html"));
 });
 
-// ✅ GET → View Users
-app.get("/admin/users", async (req, res) => {
-    try {
-        const users = await User.find();
-
-        res.json({
-            message: "Users fetched",
-            count: users.length,
-            data: users
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Error fetching users",
-            error: error.message
-        });
-    }
-});
-
-// ✅ DELETE → Delete User
-app.delete("/admin/users/:id", async (req, res) => {
-    try {
-        const user = await User.findByIdAndDelete(req.params.id);
-
-        if (!user) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        res.json({
-            message: "User deleted",
-            data: user
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Error deleting user",
-            error: error.message
-        });
-    }
-});
-
-// ✅ PUT → Update User
-app.put("/admin/users/:id", async (req, res) => {
-    try {
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
-        );
-
-        if (!user) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        res.json({
-            message: "User updated",
-            data: user
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Error updating user",
-            error: error.message
-        });
-    }
-});
-
-// ================= SERVER =================
-const PORT = 3000;
+// Start Server
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });

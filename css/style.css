@@ -99,6 +99,48 @@ a{text-decoration:none;color:inherit}
   min-height:100vh;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;
 }
 
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+
+.cal-day {
+    min-height: 80px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    background: #fff;
+}
+
+.cal-day.empty {
+    background: transparent;
+    border: none;
+}
+
+.cal-date-num {
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.dot-income {
+    width: 10px;
+    height: 10px;
+    background: green;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot-expense {
+    width: 10px;
+    height: 10px;
+    background: red;
+    border-radius: 50%;
+    display: inline-block;
+}
+
 /* left branding panel */
 .login-panel-left{
   background:linear-gradient(158deg,var(--primary-dark) 0%,var(--primary) 55%,#1aab6d 100%);

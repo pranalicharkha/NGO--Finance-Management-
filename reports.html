@@ -110,24 +110,35 @@
           <i class="bi bi-table me-2" style="color:var(--text-muted)"></i>Transaction Ledger
         </h5>
         <div class="filter-bar">
-          <select id="filterType" title="Filter by type">
-            <option value="all">All Types</option>
-            <option value="income">Income Only</option>
-            <option value="expense">Expenses Only</option>
-          </select>
-          <input type="month" id="filterMonth" title="Filter by month"/>
-          <button class="btn-filter" id="btnFilter">
-            <i class="bi bi-funnel me-1"></i>Filter
-          </button>
-          <button id="btnReset"
-            style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-xs);
-                   padding:8px 14px;font-family:'Inter',sans-serif;font-size:0.84rem;
-                   color:var(--text-muted);cursor:pointer;transition:all 0.2s;"
-            onmouseover="this.style.background='var(--surface-2)'"
-            onmouseout="this.style.background='transparent'">
-            <i class="bi bi-x-lg"></i> Reset
-          </button>
-        </div>
+  <select id="filterType" title="Filter by type">
+    <option value="all">All Types</option>
+    <option value="income">Income Only</option>
+    <option value="expense">Expense Only</option>
+  </select>
+
+  <input type="month" id="filterMonth" title="Filter by month">
+
+  <button class="btn-filter" id="btnFilter">
+    <i class="bi bi-funnel me-1"></i> Filter
+  </button>
+
+  <button id="btnReset"
+    style="
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 8px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    "
+    onmouseover="this.style.background='var(--surface-2)'"
+    onmouseout="this.style.background='transparent'">
+    <i class="bi bi-x-lg me-1"></i> Reset
+  </button>
+</div>
       </div>
 
       <div class="table-wrapper">
@@ -143,7 +154,7 @@
             </tr>
           </thead>
           <tbody id="reportsTbody">
-            <tr><td colspan="6" class="no-data"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+            
           </tbody>
         </table>
       </div>
