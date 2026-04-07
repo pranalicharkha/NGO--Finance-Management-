@@ -3,7 +3,7 @@
    style.css  v2.0
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 /* ── Light Mode Tokens ─────────────────────────────────── */
 :root {
@@ -73,12 +73,12 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{
-  font-family:'Inter',sans-serif;
+  font-family:'Source Sans 3',sans-serif;
   background:var(--bg);color:var(--text-primary);
   font-size:15px;line-height:1.65;
   transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
 }
-h1,h2,h3,h4,h5,h6{font-family:'Cormorant Garamond',serif;color:var(--text-primary);line-height:1.2}
+h1,h2,h3,h4,h5,h6{font-family:'Libre Baskerville',serif;color:var(--text-primary);line-height:1.2}
 a{text-decoration:none;color:inherit}
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -356,7 +356,15 @@ textarea.form-control{resize:vertical;min-height:90px}
 .stat-card.expense .card-icon{background:rgba(220,38,38,0.10);color:var(--danger)}
 .stat-card.balance .card-icon{background:rgba(26,86,219,0.10);color:var(--accent)}
 .card-label{font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px}
-.card-value{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:700;line-height:1;margin-bottom:9px}
+.card-value{
+  font-family:'Source Sans 3',sans-serif;
+  font-size:2rem;
+  font-weight:700;
+  line-height:1;
+  margin-bottom:9px;
+  font-variant-numeric:tabular-nums lining-nums;
+  font-feature-settings:"tnum" 1,"lnum" 1;
+}
 .stat-card.income  .card-value{color:var(--primary)}
 .stat-card.expense .card-value{color:var(--danger)}
 .stat-card.balance .card-value{color:var(--accent)}

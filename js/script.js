@@ -1,672 +1,616 @@
-/* ============================================================
-NIDIGO — NGO Finance Management & Transparency System
-script.js  v2.1 (cleaned & stable)
-============================================================ */
-
-/* ── DUMMY DATA ─────────────────────────────────────────── */
-
-const DUMMY_TRANSACTIONS = [];
-
-/* ── STORAGE ───────────────────────────────────────────── */
-
-function loadTransactions(){
-
-const raw = localStorage.getItem("nidigo_transactions");
-
-if (raw) {
-    return JSON.parse(raw);
-}
-
-localStorage.setItem("nidigo_transactions", JSON.stringify([]));
-
-return [];
-
-}
-
-function saveTransactions(txns){
-
-localStorage.setItem("nidigo_transactions",JSON.stringify(txns));
-
-}
-
-function computeTotals(txns){
-
-let income = 0;
-let expense = 0;
-
-txns.forEach(t=>{
-
-if(t.type==="income") income += t.amount;
-if(t.type==="expense") expense += t.amount;
-
-});
-
-return {
-income,
-expense,
-balance: income-expense
-};
-
-}
-
-function fmt(n){
-
-return "₨ " + n.toLocaleString("en-IN");
-
-}
-
-/* ── DARK / LIGHT MODE ───────────────────────────────── */
-
-function initTheme(){
-
-const saved = localStorage.getItem("nidigo_theme") || "light";
-
-applyTheme(saved);
-
-}
-
-function applyTheme(theme){
-
-document.documentElement.setAttribute("data-theme",theme);
-
-localStorage.setItem("nidigo_theme",theme);
-
-document.querySelectorAll(".mode-toggle i").forEach(icon=>{
-icon.className = theme==="dark" ? "bi bi-sun-fill" : "bi bi-moon-stars-fill";
-});
-
-}
-
-function toggleTheme(){
-
-const current = document.documentElement.getAttribute("data-theme") || "light";
-
-applyTheme(current==="dark" ? "light" : "dark");
-
-}
-
-/* ── ADMIN SESSION ───────────────────────────────── */
-
-function loadAdminUser(){
-
-const adminUser = sessionStorage.getItem("adminUser");
-
-if(adminUser){
-
-const name = adminUser.charAt(0).toUpperCase() + adminUser.slice(1);
-
-const nameEl = document.getElementById("adminName");
-const avatarEl = document.getElementById("adminAvatar");
-const dropdownEl = document.getElementById("dropdownName");
-
-if(nameEl) nameEl.innerText = name;
-if(avatarEl) avatarEl.innerText = name.charAt(0);
-if(dropdownEl) dropdownEl.innerText = name;
-
-}else{
-
-if(document.body.dataset.page!=="admin-login"){
-window.location.href="admin-login.html";
-}
-
-}
-
-}
-
-/* ── ADMIN DROPDOWN ───────────────────────────────── */
-
-function initAdminDropdown(){
-
-const userMenu = document.getElementById("userMenu");
-const dropdown = document.getElementById("userDropdown");
-
-if(!userMenu || !dropdown) return;
-
-userMenu.addEventListener("click",()=>{
-
-dropdown.style.display =
-dropdown.style.display==="block" ? "none" : "block";
-
-});
-
-}
-
-/* ── LOGOUT ───────────────────────────────── */
-
-function logoutAdmin(){
-
-sessionStorage.removeItem("adminUser");
-
-window.location.href="admin-login.html";
-
-}
-
-/* ── DASHBOARD ───────────────────────────────── */
-
-function initDashboard(){
-
-const txns = loadTransactions();
-const totals = computeTotals(txns);
-
-setText("totalIncome",fmt(totals.income));
-setText("totalExpense",fmt(totals.expense));
-setText("totalBalance",fmt(totals.balance));
-
-renderRecentActivity(txns.slice(-6).reverse());
-renderPieChart(txns);
-renderBarChart(txns);
-
-}
-
-function renderRecentActivity(txns){
-
-const c = document.getElementById("recentActivity");
-
-if(!c) return;
-
-if(!txns.length){
-
-c.innerHTML = "<div>No transactions yet</div>";
-return;
-
-}
-
-c.innerHTML = txns.map(t=>{
-
-const inc = t.type==="income";
-
-return `
-
-<div class="activity-item">
-
-<div class="act-info">
-<div>${t.source}</div>
-<div>${formatDate(t.date)} • ${t.category}</div>
-</div>
-
-<div class="${inc?'pos':'neg'}">
-${inc?'+':'-'}${fmt(t.amount)}
-</div>
-
-</div>
-`;
-
-}).join("");
-
-}
-
-/* ── CHARTS ───────────────────────────────── */
-
-function renderPieChart(txns){
-
-const canvas = document.getElementById("pieChart");
-
-if(!canvas) return;
-
-const expenses = txns.filter(t=>t.type==="expense");
-
-const catMap = {};
-
-expenses.forEach(t=>{
-catMap[t.category]=(catMap[t.category]||0)+t.amount;
-});
-
-new Chart(canvas,{
-type:"doughnut",
-data:{
-labels:Object.keys(catMap),
-datasets:[{
-data:Object.values(catMap),
-backgroundColor:["#0f6e4d","#1a56db","#d97706","#dc2626","#7c3aed"]
-}]
-},
-options:{responsive:true}
-});
-
-}
-
-function renderBarChart(txns){
-
-const canvas = document.getElementById("barChart");
-
-if(!canvas) return;
-
-const months = ["Jan","Feb","Mar","Apr","May","Jun"];
-
-const income=[0,0,0,0,0,0];
-const expense=[0,0,0,0,0,0];
-
-txns.forEach(t=>{
-
-const m = new Date(t.date).getMonth();
-
-if(t.type==="income") income[m]+=t.amount;
-if(t.type==="expense") expense[m]+=t.amount;
-
-});
-
-new Chart(canvas,{
-type:"bar",
-data:{
-labels:months,
-datasets:[
-{label:"Income",data:income,backgroundColor:"#0f6e4d"},
-{label:"Expense",data:expense,backgroundColor:"#dc2626"}
-]
-}
-});
-
-}
-
-/* ── ADD INCOME ───────────────────────────────── */
-
-function initIncomePage(){
-
-const form = document.getElementById("incomeForm");
-
-if (!form) return;
-
-form.addEventListener("submit", function(e) {
-
-    e.preventDefault();
-
-    const date = document.getElementById("incDate").value;
-    const source = document.getElementById("incSource").value;
-    const category = document.getElementById("incCategory").value;
-    const amount = parseFloat(document.getElementById("incAmount").value);
-    const description = document.getElementById("incDescription")?.value || "";
-
-    if (!date || !source || !category || !amount) {
-        alert("Please fill all required fields");
-        return;
+let dashboardTrendChart;
+let dashboardCategoryChart;
+let reportsTrendChart;
+let reportsCategoryChart;
+let reportTransactionsCache = [];
+let transactionModalInstance;
+
+async function apiFetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const contentType = response.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const data = isJson ? await response.json() : await response.text();
+
+    if (!isJson) {
+        throw new Error("API route is returning HTML instead of JSON. Restart the server and check that the route exists.");
     }
 
-    const txns = loadTransactions();
+    if (!response.ok) {
+        throw new Error(data.message || "Request failed");
+    }
 
-    const newIncome = {
-        id: Date.now(),
-        type: "income",
-        date,
-        source,
-        category,
-        amount: Number(amount),
-        description
+    return data;
+}
+
+function normalizeDateValue(value) {
+    if (!value) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return String(value).split("T")[0];
+    }
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+async function loadTransactionsFromApi() {
+    const data = await apiFetchJson("/user/transactions");
+    return (data.transactions || []).map((item) => ({
+        ...item,
+        date: normalizeDateValue(item.date)
+    }));
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 2
+    }).format(Number(value || 0));
+}
+
+function formatPaymentMethod(value) {
+    if (!value) return "Not available";
+    const normalized = String(value).trim().toLowerCase();
+    const labels = {
+        upi: "UPI",
+        cash: "Cash",
+        card: "Card",
+        cheque: "Cheque",
+        bank_transfer: "Bank Transfer",
+        banktransfer: "Bank Transfer"
     };
-
-    const alreadyExists = txns.some(t =>
-        t.type === "income" &&
-        t.date === newIncome.date &&
-        t.source === newIncome.source &&
-        t.category === newIncome.category &&
-        t.amount === newIncome.amount
-    );
-
-    if (alreadyExists) {
-        alert("This income already exists");
-        return;
-    }
-
-    txns.push(newIncome);
-    saveTransactions(txns);
-
-    alert("Income added successfully");
-    form.reset();
-});
+    if (labels[normalized]) return labels[normalized];
+    return normalized
+        .split(/[_\s-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
 }
 
-/* ── ADD EXPENSE ───────────────────────────────── */
+function formatDate(dateValue) {
+    return new Date(`${normalizeDateValue(dateValue)}T00:00:00`).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+    });
+}
 
-function initExpensePage(){
+function setText(id, text) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = text;
+}
 
-const form = document.getElementById("expenseForm");
+function initTheme() {
+    const saved = localStorage.getItem("nidigo_theme") || "light";
+    applyTheme(saved);
+}
 
-if (!form) return;
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("nidigo_theme", theme);
+    document.querySelectorAll(".mode-toggle i").forEach((icon) => {
+        icon.className = theme === "dark" ? "bi bi-sun-fill" : "bi bi-moon-stars-fill";
+    });
+}
 
-form.addEventListener("submit", function(e) {
+function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    applyTheme(current === "dark" ? "light" : "dark");
+}
 
-    e.preventDefault();
-
-    const date = document.getElementById("expDate").value;
-    const title = document.getElementById("expTitle").value;
-    const category = document.getElementById("expCategory").value;
-    const amount = parseFloat(document.getElementById("expAmount").value);
-    const description = document.getElementById("expDescription")?.value || "";
-
-    if (!date || !title || !category || !amount) {
-        alert("Please fill all required fields");
+function loadAdminUser() {
+    const adminUser = sessionStorage.getItem("adminUser");
+    if (!adminUser) {
+        if (document.body.dataset.page !== "admin-login") {
+            window.location.href = "admin-login.html";
+        }
         return;
     }
 
-    const txns = loadTransactions();
+    const name = adminUser.charAt(0).toUpperCase() + adminUser.slice(1);
+    setText("adminName", name);
+    setText("adminAvatar", name.charAt(0));
+    setText("dropdownName", name);
+}
 
-    const newExpense = {
-        id: Date.now(),
-        type: "expense",
-        date,
-        source: title,
-        category,
-        amount: Number(amount),
-        description
+function initAdminDropdown() {
+    const userMenu = document.getElementById("userMenu");
+    const dropdown = document.getElementById("userDropdown");
+    if (!userMenu || !dropdown) return;
+
+    userMenu.addEventListener("click", () => {
+        dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+    });
+
+    document.addEventListener("click", (event) => {
+        if (!userMenu.contains(event.target)) {
+            dropdown.style.display = "none";
+        }
+    });
+}
+
+function logoutAdmin() {
+    sessionStorage.removeItem("adminUser");
+    window.location.href = "admin-login.html";
+}
+
+window.logoutAdmin = logoutAdmin;
+
+function setTopbarDate() {
+    const element = document.getElementById("topbarDate");
+    if (element) {
+        element.textContent = new Date().toLocaleDateString("en-GB", {
+            weekday: "short",
+            day: "numeric",
+            month: "long",
+            year: "numeric"
+        });
+    }
+}
+
+function buildMonthlySeries(monthlyIncome = [], monthlyExpense = []) {
+    const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const incomeMap = Object.fromEntries(monthlyIncome.map((item) => [item.month, Number(item.total || 0)]));
+    const expenseMap = Object.fromEntries(monthlyExpense.map((item) => [item.month, Number(item.total || 0)]));
+    return {
+        labels: monthLabels,
+        income: monthLabels.map((month) => incomeMap[month] || 0),
+        expense: monthLabels.map((month) => expenseMap[month] || 0)
     };
+}
 
-    const alreadyExists = txns.some(t =>
-        t.type === "expense" &&
-        t.date === newExpense.date &&
-        t.source === newExpense.source &&
-        t.category === newExpense.category &&
-        t.amount === newExpense.amount
-    );
+function destroyChart(chart) {
+    if (chart) chart.destroy();
+}
 
-    if (alreadyExists) {
-        alert("This expense already exists");
+function renderDashboardCharts(data) {
+    if (typeof Chart === "undefined") return;
+
+    const trendCanvas = document.getElementById("dashboardTrendChart");
+    const categoryCanvas = document.getElementById("dashboardCategoryChart");
+
+    if (trendCanvas) {
+        const monthlySeries = buildMonthlySeries(data.monthlyIncome, data.monthlyExpense);
+        destroyChart(dashboardTrendChart);
+        dashboardTrendChart = new Chart(trendCanvas, {
+            type: "bar",
+            data: {
+                labels: monthlySeries.labels,
+                datasets: [
+                    { label: "Income", data: monthlySeries.income, backgroundColor: "#0f6e4d", borderRadius: 8 },
+                    { label: "Expense", data: monthlySeries.expense, backgroundColor: "#dc2626", borderRadius: 8 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } }
+        });
+    }
+
+    if (categoryCanvas) {
+        destroyChart(dashboardCategoryChart);
+        dashboardCategoryChart = new Chart(categoryCanvas, {
+            type: "doughnut",
+            data: {
+                labels: (data.categoryExpense || []).map((item) => item.category),
+                datasets: [{ data: (data.categoryExpense || []).map((item) => Number(item.total || 0)), backgroundColor: ["#0f6e4d", "#1a56db", "#d97706", "#dc2626", "#7c3aed", "#14b8a6"] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } }
+        });
+    }
+}
+
+function renderRecentActivity(transactions = []) {
+    const container = document.getElementById("recentActivity");
+    if (!container) return;
+
+    if (!transactions.length) {
+        container.innerHTML = "<div class='activity-item'><div class='act-info'><div>No transactions yet</div><div>Add income or expense to see live activity.</div></div></div>";
         return;
     }
 
-    txns.push(newExpense);
-    saveTransactions(txns);
-
-    alert("Expense added successfully");
-    form.reset();
-});
+    container.innerHTML = transactions.map((item) => {
+        const isIncome = item.type === "income";
+        return `
+            <div class="activity-item">
+                <div class="act-icon ${isIncome ? "badge-income" : "badge-expense"}">
+                    <i class="bi ${isIncome ? "bi-arrow-down-left" : "bi-arrow-up-right"}"></i>
+                </div>
+                <div class="act-info">
+                    <div>${item.title}</div>
+                    <div>${formatDate(item.date)} • ${item.category}</div>
+                </div>
+                <div class="${isIncome ? "pos" : "neg"}">${isIncome ? "+" : "-"}${formatCurrency(item.amount)}</div>
+            </div>
+        `;
+    }).join("");
 }
 
-/* ── HELPERS ───────────────────────────────── */
-
-function setText(id,text){
-
-const el = document.getElementById(id);
-
-if(el) el.textContent=text;
-
+async function initDashboard() {
+    try {
+        const data = await apiFetchJson("/admin/dashboard");
+        setText("totalIncome", formatCurrency(data.totalIncome));
+        setText("totalExpense", formatCurrency(data.totalExpense));
+        setText("totalBalance", formatCurrency(data.balance));
+        setText("totalUsers", String(data.totalUsers || 0));
+        setText("topExpenseCategory", data.categoryExpense?.[0]?.category || "No expense data");
+        setText("topExpenseCategoryAmount", formatCurrency(data.categoryExpense?.[0]?.total || 0));
+        setText("topPaymentMethod", formatPaymentMethod(data.paymentMethods?.[0]?.paymentMethod));
+        setText("topPaymentMethodAmount", formatCurrency(data.paymentMethods?.[0]?.total || 0));
+        renderDashboardCharts(data);
+        renderRecentActivity(data.recentTransactions || []);
+    } catch (error) {
+        console.error("Dashboard load error:", error);
+    }
 }
 
-function formatDate(str){
-
-const d = new Date(str+"T00:00:00");
-
-return d.toLocaleDateString("en-GB",{
-day:"2-digit",
-month:"short",
-year:"numeric"
-});
-
+async function initIncomePage() {
+    const form = document.getElementById("incomeForm");
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const payload = {
+            date: document.getElementById("incDate").value,
+            category: document.getElementById("incCategory").value,
+            source: document.getElementById("incSource").value.trim(),
+            payment_method: document.getElementById("incPaymentMethod")?.value || null,
+            amount: document.getElementById("incAmount").value,
+            description: document.getElementById("incDesc").value.trim()
+        };
+        if (!payload.date || !payload.category || !payload.source || !payload.amount) {
+            alert("Please fill all required fields.");
+            return;
+        }
+        try {
+            const result = await apiFetchJson("/user/income", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            alert(result.message || "Income added successfully");
+            form.reset();
+        } catch (error) {
+            console.error("Income save error:", error);
+            alert(error.message || "Failed to save income");
+        }
+    });
 }
 
-function setTopbarDate(){
-
-const el = document.getElementById("topbarDate");
-
-if(el){
-
-el.textContent=new Date().toLocaleDateString("en-GB",{
-weekday:"short",
-day:"numeric",
-month:"long",
-year:"numeric"
-});
-
+async function initExpensePage() {
+    const form = document.getElementById("expenseForm");
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const payload = {
+            date: document.getElementById("expDate").value,
+            category: document.getElementById("expCategory").value,
+            title: document.getElementById("expTitle").value.trim(),
+            payment_method: document.getElementById("expPaymentMethod")?.value || null,
+            amount: document.getElementById("expAmount").value,
+            description: document.getElementById("expDesc").value.trim()
+        };
+        if (!payload.date || !payload.category || !payload.title || !payload.amount) {
+            alert("Please fill all required fields.");
+            return;
+        }
+        try {
+            const result = await apiFetchJson("/user/expense", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            alert(result.message || "Expense added successfully");
+            form.reset();
+        } catch (error) {
+            console.error("Expense save error:", error);
+            alert(error.message || "Failed to save expense");
+        }
+    });
 }
 
-}
-
-function initCalendarPage() {
-
+async function initCalendarPage() {
     const grid = document.getElementById("calGrid");
     if (!grid) return;
 
     let currentDate = new Date();
+    const transactions = await loadTransactionsFromApi();
 
     function renderCalendar() {
-
-        const txns = loadTransactions();
-
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
-
         const firstDay = new Date(year, month, 1).getDay();
         const totalDays = new Date(year, month + 1, 0).getDate();
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-        const monthNames = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        ];
-
-        document.getElementById("calMonthLabel").innerText = `${monthNames[month]} ${year}`;
-
+        setText("calMonthLabel", `${monthNames[month]} ${year}`);
         grid.innerHTML = "";
 
-        // Empty boxes before first day
-        for (let i = 0; i < firstDay; i++) {
+        for (let i = 0; i < firstDay; i += 1) {
             const emptyCell = document.createElement("div");
             emptyCell.className = "cal-day empty";
             grid.appendChild(emptyCell);
         }
 
-        // Create each day box
-        for (let day = 1; day <= totalDays; day++) {
-
+        for (let day = 1; day <= totalDays; day += 1) {
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
-            const dayTxns = txns.filter(t => t.date === dateStr);
-
-            const incomeCount = dayTxns.filter(t => t.type === "income").length;
-const expenseCount = dayTxns.filter(t => t.type === "expense").length;
+            const dayTransactions = transactions.filter((item) => item.date.startsWith(dateStr));
+            const incomeCount = dayTransactions.filter((item) => item.type === "income").length;
+            const expenseCount = dayTransactions.filter((item) => item.type === "expense").length;
 
             const cell = document.createElement("div");
             cell.className = "cal-day";
-
             cell.innerHTML = `
-    <div class="cal-date-num">${day}</div>
-
-    <div style="display:flex;justify-content:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
-        ${incomeCount > 0 ? `<span class="dot-income"></span><small>${incomeCount}</small>` : ""}
-        ${expenseCount > 0 ? `<span class="dot-expense"></span><small>${expenseCount}</small>` : ""}
-    </div>
-`;
+                <div class="cal-date-num">${day}</div>
+                <div style="display:flex;justify-content:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                    ${incomeCount ? `<span class="dot-income"></span><small>${incomeCount}</small>` : ""}
+                    ${expenseCount ? `<span class="dot-expense"></span><small>${expenseCount}</small>` : ""}
+                </div>
+            `;
 
             cell.addEventListener("click", () => {
                 const detailBox = document.getElementById("selectedDayRecords");
-
-                if (detailBox) {
-                    if (dayTxns.length === 0) {
-                        detailBox.innerHTML = `<p>No transactions on ${dateStr}</p>`;
-                    } else {
-                        detailBox.innerHTML = `
-                            <h5 style="margin-bottom:10px;">Transactions on ${dateStr}</h5>
-                            ${dayTxns.map(t => `
-                                <div style="margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:8px;">
-                                    <strong>${t.type.toUpperCase()}</strong><br>
-                                    ${t.type === "income" ? `Source: ${t.source}` : `Title: ${t.title}`}<br>
-                                    Category: ${t.category}<br>
-                                    Amount: ₹ ${t.amount}
-                                </div>
-                            `).join("")}
-                        `;
-                    }
+                if (!detailBox) return;
+                if (!dayTransactions.length) {
+                    detailBox.innerHTML = `<p>No transactions on ${dateStr}</p>`;
+                    return;
                 }
+                detailBox.innerHTML = `
+                    <h5 style="margin-bottom:10px;">Transactions on ${dateStr}</h5>
+                    ${dayTransactions.map((item) => `
+                        <div style="margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                            <strong>${item.type.toUpperCase()}</strong><br>
+                            ${item.source ? `Source: ${item.source}` : `Title: ${item.title}`}<br>
+                            Category: ${item.category}<br>
+                            Amount: ${formatCurrency(item.amount)}
+                        </div>
+                    `).join("")}
+                `;
             });
 
             grid.appendChild(cell);
         }
 
-        // Only calculate totals for current month
-        const currentMonthTransactions = txns.filter(t => {
-            const txDate = new Date(t.date);
-            return (
-                txDate.getMonth() === month &&
-                txDate.getFullYear() === year
-            );
+        const currentMonthTransactions = transactions.filter((item) => {
+            const itemDate = new Date(`${item.date}T00:00:00`);
+            return itemDate.getMonth() === month && itemDate.getFullYear() === year;
         });
 
-        const monthIncome = currentMonthTransactions
-            .filter(t => t.type === "income")
-            .reduce((sum, t) => sum + Number(t.amount), 0);
+        const monthIncome = currentMonthTransactions.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount), 0);
+        const monthExpense = currentMonthTransactions.filter((item) => item.type === "expense").reduce((sum, item) => sum + Number(item.amount), 0);
 
-        const monthExpense = currentMonthTransactions
-            .filter(t => t.type === "expense")
-            .reduce((sum, t) => sum + Number(t.amount), 0);
-
-        document.getElementById("calMonthInc").innerText = "Rs " + monthIncome;
-        document.getElementById("calMonthExp").innerText = "Rs " + monthExpense;
-        document.getElementById("calMonthBal").innerText = "Rs " + (monthIncome - monthExpense);
+        setText("calMonthInc", formatCurrency(monthIncome));
+        setText("calMonthExp", formatCurrency(monthExpense));
+        setText("calMonthBal", formatCurrency(monthIncome - monthExpense));
     }
 
     renderCalendar();
-
-    document.getElementById("calPrev")?.addEventListener("click", () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
-    });
-
-    document.getElementById("calNext")?.addEventListener("click", () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
-    });
+    document.getElementById("calPrev")?.addEventListener("click", () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+    document.getElementById("calNext")?.addEventListener("click", () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
 }
 
+function renderReportsCharts(transactions) {
+    if (typeof Chart === "undefined") return;
+    const trendCanvas = document.getElementById("reportsTrendChart");
+    const categoryCanvas = document.getElementById("reportsCategoryChart");
+
+    if (trendCanvas) {
+        const monthlyMap = {};
+        transactions.forEach((item) => {
+            const label = new Date(`${item.date}T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+            if (!monthlyMap[label]) monthlyMap[label] = { income: 0, expense: 0 };
+            if (item.type === "income") monthlyMap[label].income += Number(item.amount);
+            else monthlyMap[label].expense += Number(item.amount);
+        });
+        const labels = Object.keys(monthlyMap);
+        destroyChart(reportsTrendChart);
+        reportsTrendChart = new Chart(trendCanvas, {
+            type: "line",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Income", data: labels.map((label) => monthlyMap[label].income), borderColor: "#0f6e4d", backgroundColor: "rgba(15,110,77,0.12)", tension: 0.35, fill: true },
+                    { label: "Expense", data: labels.map((label) => monthlyMap[label].expense), borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.12)", tension: 0.35, fill: true }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    if (categoryCanvas) {
+        const expenseCategoryMap = {};
+        transactions.filter((item) => item.type === "expense").forEach((item) => { expenseCategoryMap[item.category] = (expenseCategoryMap[item.category] || 0) + Number(item.amount); });
+        const labels = Object.keys(expenseCategoryMap);
+        destroyChart(reportsCategoryChart);
+        reportsCategoryChart = new Chart(categoryCanvas, {
+            type: "polarArea",
+            data: { labels, datasets: [{ data: labels.map((label) => expenseCategoryMap[label]), backgroundColor: ["#0f6e4d", "#1a56db", "#d97706", "#dc2626", "#7c3aed", "#14b8a6"] }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+}
 
 async function initReportsPage() {
-
     const tbody = document.getElementById("reportsTbody");
+    if (!tbody) return;
+
     const sumIncome = document.getElementById("sumIncome");
     const sumExpense = document.getElementById("sumExpense");
     const sumBalance = document.getElementById("sumBalance");
-
     const filterType = document.getElementById("filterType");
     const filterMonth = document.getElementById("filterMonth");
+    const filterSearch = document.getElementById("filterSearch");
     const btnFilter = document.getElementById("btnFilter");
     const btnReset = document.getElementById("btnReset");
+    const btnExport = document.getElementById("btnExport");
+    const transactionForm = document.getElementById("transactionForm");
+    const transactionModal = document.getElementById("transactionModal");
 
-    async function loadReports() {
+    if (transactionModal && window.bootstrap) {
+        transactionModalInstance = bootstrap.Modal.getOrCreateInstance(transactionModal);
+    }
 
-        tbody.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
+    const fetchTransactions = async () => {
+        reportTransactionsCache = await loadTransactionsFromApi();
+        return reportTransactionsCache;
+    };
 
+    const getFilteredTransactions = (transactions) => {
+        let filtered = [...transactions];
+        if (filterType.value !== "all") filtered = filtered.filter((item) => item.type === filterType.value);
+        if (filterMonth.value) filtered = filtered.filter((item) => item.date.startsWith(filterMonth.value));
+        if (filterSearch.value.trim()) {
+            const keyword = filterSearch.value.trim().toLowerCase();
+            filtered = filtered.filter((item) =>
+                [item.source, item.title, item.category, item.description, formatPaymentMethod(item.payment_method)]
+                    .filter(Boolean)
+                    .some((value) => value.toLowerCase().includes(keyword))
+            );
+        }
+        return filtered;
+    };
+
+    const exportTransactionsAsCsv = (transactions) => {
+        const rows = [["Date", "Type", "Source/Title", "Category", "Payment Method", "Amount", "Description"]];
+        transactions.forEach((item) => {
+            rows.push([item.date, item.type, item.source || item.title || "", item.category || "", formatPaymentMethod(item.payment_method), item.amount, item.description || ""]);
+        });
+        const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "ngo-financial-report.csv";
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
+    const openEditModal = (transaction) => {
+        document.getElementById("editType").value = transaction.type;
+        document.getElementById("editId").value = transaction.id;
+        document.getElementById("editDate").value = normalizeDateValue(transaction.date);
+        document.getElementById("editCategory").value = transaction.category || "";
+        document.getElementById("editName").value = transaction.source || transaction.title || "";
+        document.getElementById("editAmount").value = transaction.amount;
+        document.getElementById("editDescription").value = transaction.description || "";
+        document.getElementById("transactionModalLabel").textContent = `Edit ${transaction.type}`;
+        if (window.bootstrap && transactionModal) {
+            transactionModalInstance = bootstrap.Modal.getOrCreateInstance(transactionModal);
+            transactionModalInstance.show();
+        }
+    };
+
+    const deleteTransaction = async (transaction) => {
+        if (!window.confirm(`Delete this ${transaction.type} record?`)) return;
         try {
-            const response = await fetch("/user/transactions");
-            const data = await response.json();
+            await apiFetchJson(`/user/${transaction.type}/${transaction.id}`, { method: "DELETE" });
+            await loadReports();
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert(error.message || "Failed to delete transaction");
+        }
+    };
 
-            if (!data.success) {
-                tbody.innerHTML = "<tr><td colspan='6'>Failed to load data</td></tr>";
-                return;
-            }
+    tbody.addEventListener("click", async (event) => {
+        const actionButton = event.target.closest("[data-action]");
+        if (!actionButton) return;
+        const transaction = reportTransactionsCache.find((item) => item.type === actionButton.dataset.type && String(item.id) === String(actionButton.dataset.id));
+        if (!transaction) return;
+        if (actionButton.dataset.action === "edit") openEditModal(transaction);
+        if (actionButton.dataset.action === "delete") await deleteTransaction(transaction);
+    });
 
-            let transactions = data.transactions || [];
-
-            const selectedType = filterType.value;
-            const selectedMonth = filterMonth.value;
-
-            if (selectedType !== "all") {
-                transactions = transactions.filter(t => t.type === selectedType);
-            }
-
-            if (selectedMonth) {
-                transactions = transactions.filter(t => {
-                    const txnDate = new Date(t.date).toISOString().split("T")[0];
-                    return txnDate.startsWith(selectedMonth);
-                });
-            }
-
-            tbody.innerHTML = "";
-
+    const loadReports = async () => {
+        tbody.innerHTML = "<tr><td colspan='8'>Loading...</td></tr>";
+        try {
+            const allTransactions = await fetchTransactions();
+            const transactions = getFilteredTransactions(allTransactions);
             let incomeTotal = 0;
             let expenseTotal = 0;
 
-            if (transactions.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='6'>No transactions found</td></tr>";
-
-                sumIncome.innerText = "₹ 0";
-                sumExpense.innerText = "₹ 0";
-                sumBalance.innerText = "₹ 0";
-
+            if (!transactions.length) {
+                tbody.innerHTML = "<tr><td colspan='8'>No transactions found</td></tr>";
+                setText("sumIncome", formatCurrency(0));
+                setText("sumExpense", formatCurrency(0));
+                setText("sumBalance", formatCurrency(0));
+                renderReportsCharts([]);
                 return;
             }
 
-            transactions.forEach((t, index) => {
-
-                const amount = Number(t.amount);
-
-                if (t.type === "income") {
-                    incomeTotal += amount;
-                } else {
-                    expenseTotal += amount;
-                }
-
-                const formattedDate = new Date(t.date).toLocaleDateString("en-GB");
-
-                tbody.innerHTML += `
+            tbody.innerHTML = transactions.map((item, index) => {
+                const amount = Number(item.amount);
+                if (item.type === "income") incomeTotal += amount;
+                else expenseTotal += amount;
+                return `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${formattedDate}</td>
-                        <td style="text-transform:capitalize;">${t.type}</td>
-                        <td>${t.source || t.title || "-"}</td>
-                        <td>${t.category || "-"}</td>
-                        <td>₹ ${amount}</td>
+                        <td>${formatDate(item.date)}</td>
+                        <td style="text-transform:capitalize;">${item.type}</td>
+                        <td>${item.source || item.title || "-"}</td>
+                        <td>${item.category || "-"}</td>
+                        <td>${formatCurrency(amount)}</td>
+                        <td>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" class="btn-filter" data-action="edit" data-type="${item.type}" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;">Edit</button>
+                                <button type="button" class="btn-filter" data-action="delete" data-type="${item.type}" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--danger);">Delete</button>
+                            </div>
+                        </td>
                     </tr>
                 `;
-            });
+            }).join("");
 
-            sumIncome.innerText = "₹ " + incomeTotal;
-            sumExpense.innerText = "₹ " + expenseTotal;
-            sumBalance.innerText = "₹ " + (incomeTotal - expenseTotal);
-
+            sumIncome.innerText = formatCurrency(incomeTotal);
+            sumExpense.innerText = formatCurrency(expenseTotal);
+            sumBalance.innerText = formatCurrency(incomeTotal - expenseTotal);
+            renderReportsCharts(transactions);
         } catch (error) {
-            console.log("Reports Error:", error);
-            tbody.innerHTML = "<tr><td colspan='6'>Error loading reports</td></tr>";
-
-            sumIncome.innerText = "₹ 0";
-            sumExpense.innerText = "₹ 0";
-            sumBalance.innerText = "₹ 0";
+            console.error("Reports Error:", error);
+            tbody.innerHTML = "<tr><td colspan='8'>Error loading reports</td></tr>";
+            sumIncome.innerText = formatCurrency(0);
+            sumExpense.innerText = formatCurrency(0);
+            sumBalance.innerText = formatCurrency(0);
         }
-    }
+    };
 
-    btnFilter.addEventListener("click", () => {
-        loadReports();
+    transactionForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const type = document.getElementById("editType").value;
+        const id = document.getElementById("editId").value;
+        const payload = {
+            date: document.getElementById("editDate").value,
+            category: document.getElementById("editCategory").value.trim(),
+            amount: document.getElementById("editAmount").value,
+            description: document.getElementById("editDescription").value.trim()
+        };
+        if (type === "income") payload.source = document.getElementById("editName").value.trim();
+        else payload.title = document.getElementById("editName").value.trim();
+
+        try {
+            await apiFetchJson(`/user/${type}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            transactionModalInstance?.hide();
+            await loadReports();
+        } catch (error) {
+            console.error("Update error:", error);
+            alert(error.message || "Failed to update transaction");
+        }
     });
 
-    btnReset.addEventListener("click", () => {
-        filterType.value = "all";
-        filterMonth.value = "";
-        loadReports();
+    btnFilter?.addEventListener("click", loadReports);
+    btnReset?.addEventListener("click", () => { filterType.value = "all"; filterMonth.value = ""; filterSearch.value = ""; loadReports(); });
+    btnExport?.addEventListener("click", async () => {
+        const transactions = getFilteredTransactions(reportTransactionsCache.length ? reportTransactionsCache : await fetchTransactions());
+        exportTransactionsAsCsv(transactions);
     });
 
     loadReports();
 }
-/* ── AUTO INIT ───────────────────────────────── */
 
-document.addEventListener("DOMContentLoaded",function(){
+document.addEventListener("DOMContentLoaded", () => {
+    initTheme();
+    setTopbarDate();
+    loadAdminUser();
+    initAdminDropdown();
+    document.querySelectorAll(".mode-toggle").forEach((button) => button.addEventListener("click", toggleTheme));
 
-initTheme();
-setTopbarDate();
-loadAdminUser();
-initAdminDropdown();
-
-document.querySelectorAll(".mode-toggle").forEach(btn=>{
-btn.addEventListener("click",toggleTheme);
-});
-
-const page = document.body.dataset.page;
-
-switch(page) {
-
-    case "dashboard":
-        initDashboard();
-        break;
-
-    case "income":
-        initIncomePage();
-        break;
-
-    case "expense":
-        initExpensePage();
-        break;
-
-    case "calendar":
-        initCalendarPage();
-        break;
-
-    case "reports":
-        initReportsPage();
-        break;
-}
-
+    switch (document.body.dataset.page) {
+        case "dashboard": initDashboard(); break;
+        case "income": initIncomePage(); break;
+        case "expense": initExpensePage(); break;
+        case "calendar": initCalendarPage(); break;
+        case "reports": initReportsPage(); break;
+        default: break;
+    }
 });
