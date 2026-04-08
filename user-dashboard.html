@@ -65,7 +65,7 @@
             <i class="bi bi-heart-fill"></i>
           </div>
           <div class="card-label">Your Total Contributions</div>
-          <div class="card-value" style="color:var(--accent)">₨ 125,000</div>
+          <div class="card-value" id="userTotalContribution" style="color:var(--accent)">₹ 0</div>
           <div class="card-trend"><i class="bi bi-calendar3"></i> Since Jan 2024</div>
         </div>
       </div>
@@ -93,7 +93,7 @@
             <i class="bi bi-clipboard-check-fill"></i>
           </div>
           <div class="card-label">Donations Made</div>
-          <div class="card-value" style="color:#10b981">8</div>
+          <div class="card-value" id="userDonationCount" style="color:#10b981">0</div>
           <div class="card-trend"><i class="bi bi-clock-history"></i> Last: 15 Jan 2025</div>
         </div>
       </div>
@@ -207,47 +207,57 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/script.js"></script>
+
 <script>
-  // User fund allocation pie chart
-  const userCanvas = document.getElementById('userPieChart');
-  if (userCanvas) {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    new Chart(userCanvas, {
-      type: 'doughnut',
-      data: {
-        labels: ['Education', 'Healthcare', 'Clean Water', 'Skill Training', 'Admin'],
-        datasets: [{
-          data: [45000, 30000, 28000, 15000, 7000],
-          backgroundColor: ['#0f6e4d', '#1a56db', '#0891b2', '#d97706', '#dc2626'],
-          borderWidth: 2,
-          borderColor: dark ? '#101e16' : '#fff',
-          hoverOffset: 8
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '64%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: 'Inter', size: 12 },
-              padding: 14,
-              usePointStyle: true,
-              pointStyleWidth: 9,
-              color: dark ? '#8ab49f' : '#7a9589'
-            }
+async function loadUserDashboardData() {
+  try {
+    const dashRes = await fetch("/user/dashboard");
+    const dashData = await dashRes.json();
+
+    if (dashData.success) {
+      document.getElementById("userTotalContribution").innerText = "₹ " + dashData.totalIncome;
+    }
+
+    const txRes = await fetch("/user/transactions");
+    const txData = await txRes.json();
+
+    if (txData.success) {
+      const donations = txData.transactions.filter(t => t.type === "income");
+      document.getElementById("userDonationCount").innerText = donations.length;
+    }
+
+    const catRes = await fetch("/user/category-report");
+    const catData = await catRes.json();
+
+    if (catData.success) {
+      const labels = catData.categories.map(c => c.category);
+      const values = catData.categories.map(c => Number(c.totalExpense));
+
+      const userCanvas = document.getElementById("userPieChart");
+      if (userCanvas) {
+        new Chart(userCanvas, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: values,
+              backgroundColor: ["#0f6e4d", "#1a56db", "#0891b2", "#d97706", "#dc2626"]
+            }]
           },
-          tooltip: {
-            callbacks: {
-              label: ctx => ` ${ctx.label}: ₨ ${ctx.parsed.toLocaleString('en-PK')}`
-            }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
           }
-        }
+        });
       }
-    });
+    }
+
+  } catch (error) {
+    console.error("User dashboard error:", error);
   }
+}
+
+document.addEventListener("DOMContentLoaded", loadUserDashboardData);
 </script>
 </body>
 </html>

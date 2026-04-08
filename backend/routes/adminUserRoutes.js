@@ -1,44 +1,55 @@
 const express = require("express");
 const router = express.Router();
-const mysql = require("mysql2");
-require("dotenv").config();
-
-const db = mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "finance_management"
-});
+const db = require("../config/db");
 
 // =======================
 // Add New User
 // POST /admin/users
 // =======================
 router.post("/users", (req, res) => {
-    const { name } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name) {
+    if (!name || !email || !password) {
         return res.status(400).json({
             success: false,
-            message: "User name is required"
+            message: "Name, email, and password are required"
         });
     }
 
-    const sql = "INSERT INTO users (name) VALUES (?)";
+    const checkSql = "SELECT id FROM users WHERE email = ?";
 
-    db.query(sql, [name], (err, result) => {
-        if (err) {
-            console.log(err);
+    db.query(checkSql, [email], (checkErr, existingUsers) => {
+        if (checkErr) {
+            console.log(checkErr);
             return res.status(500).json({
                 success: false,
-                message: "Failed to add user"
+                message: "Failed to validate user email"
             });
         }
 
-        res.json({
-            success: true,
-            message: "User added successfully",
-            userId: result.insertId
+        if (existingUsers.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Email already exists"
+            });
+        }
+
+        const sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+
+        db.query(sql, [name, email, password], (err, result) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to add user"
+                });
+            }
+
+            res.json({
+                success: true,
+                message: "User added successfully",
+                userId: result.insertId
+            });
         });
     });
 });
@@ -48,7 +59,7 @@ router.post("/users", (req, res) => {
 // GET /admin/users
 // =======================
 router.get("/users", (req, res) => {
-    const sql = "SELECT * FROM users";
+    const sql = "SELECT id, name, email FROM users ORDER BY id DESC";
 
     db.query(sql, (err, results) => {
         if (err) {
@@ -72,18 +83,22 @@ router.get("/users", (req, res) => {
 // =======================
 router.put("/users/:id", (req, res) => {
     const userId = req.params.id;
-    const { name } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name) {
+    if (!name || !email) {
         return res.status(400).json({
             success: false,
-            message: "User name is required"
+            message: "User name and email are required"
         });
     }
 
-    const sql = "UPDATE users SET name = ? WHERE id = ?";
+    const sql = password
+        ? "UPDATE users SET name = ?, email = ?, password = ? WHERE id = ?"
+        : "UPDATE users SET name = ?, email = ? WHERE id = ?";
 
-    db.query(sql, [name, userId], (err, result) => {
+    const params = password ? [name, email, password, userId] : [name, email, userId];
+
+    db.query(sql, params, (err) => {
         if (err) {
             console.log(err);
             return res.status(500).json({
@@ -108,7 +123,7 @@ router.delete("/users/:id", (req, res) => {
 
     const sql = "DELETE FROM users WHERE id = ?";
 
-    db.query(sql, [userId], (err, result) => {
+    db.query(sql, [userId], (err) => {
         if (err) {
             console.log(err);
             return res.status(500).json({
@@ -124,54 +139,4 @@ router.delete("/users/:id", (req, res) => {
     });
 });
 
-// =======================
-// Browser Test Route - Add User
-// GET /admin/test-add-user
-// =======================
-router.get("/test-add-user", (req, res) => {
-    const sql = "INSERT INTO users (name) VALUES ('Rahul')";
-
-    db.query(sql, (err, result) => {
-        if (err) {
-            console.log(err);
-            return res.send("Failed to add user");
-        }
-
-        res.send("User added successfully");
-    });
-});
-
-// =======================
-// Browser Test Route - Delete User
-// GET /admin/delete-user/:id
-// =======================
-router.get("/delete-user/:id", (req, res) => {
-    const userId = req.params.id;
-
-    const sql = "DELETE FROM users WHERE id = ?";
-
-    db.query(sql, [userId], (err, result) => {
-        if (err) {
-            console.log(err);
-            return res.send("Failed to delete user");
-        }
-
-        res.send("User deleted successfully");
-    });
-});
-router.get("/update-user/:id/:name", (req, res) => {
-    const userId = req.params.id;
-    const newName = req.params.name;
-
-    const sql = "UPDATE users SET name = ? WHERE id = ?";
-
-    db.query(sql, [newName, userId], (err, result) => {
-        if (err) {
-            console.log(err);
-            return res.send("Failed to update user");
-        }
-
-        res.send("User updated successfully");
-    });
-});
 module.exports = router;

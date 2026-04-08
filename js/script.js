@@ -103,10 +103,146 @@ function toggleTheme() {
     applyTheme(current === "dark" ? "light" : "dark");
 }
 
+function loadUserSession() {
+    const raw = sessionStorage.getItem("nidigoUser");
+    if (!raw) return null;
+
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        console.error("Invalid user session:", error);
+        sessionStorage.removeItem("nidigoUser");
+        return null;
+    }
+}
+
+function applyUserSession() {
+    const user = loadUserSession();
+    const userPages = ["user-dashboard", "user-profile", "user-donations", "user-projects", "user-transparency"];
+    const page = document.body.dataset.page;
+
+    if (!user) {
+        if (userPages.includes(page)) {
+            window.location.href = "user-login.html";
+        }
+        return;
+    }
+
+    const nameEl = document.querySelector(".topbar-user .user-name");
+    const avatarEl = document.querySelector(".topbar-user .avatar");
+
+    if (nameEl) nameEl.textContent = user.name;
+    if (avatarEl) avatarEl.textContent = user.name.charAt(0).toUpperCase();
+
+    const profileNameInput = document.querySelector('input[value="John Doe"]');
+    const profileEmailInput = document.querySelector('input[value="donor@example.com"]');
+
+    if (profileNameInput) profileNameInput.value = user.name;
+    if (profileEmailInput) profileEmailInput.value = user.email;
+
+    document.querySelectorAll(".btn-logout").forEach((link) => {
+        link.addEventListener("click", () => {
+            sessionStorage.removeItem("nidigoUser");
+        });
+    });
+}
+
+function initUserLoginPage() {
+    const form = document.getElementById("userLoginForm");
+    if (!form) return;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const email = document.getElementById("userEmail").value.trim();
+        const password = document.getElementById("userPassword").value.trim();
+        const errorBox = document.getElementById("userLoginError");
+
+        if (errorBox) {
+            errorBox.style.display = "none";
+            errorBox.textContent = "";
+        }
+
+        try {
+            const response = await fetch("/user/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                if (errorBox) {
+                    errorBox.style.display = "block";
+                    errorBox.textContent = data.message || "Invalid email or password";
+                }
+                return;
+            }
+
+            sessionStorage.setItem("nidigoUser", JSON.stringify(data.user));
+            window.location.href = "user-dashboard.html";
+        } catch (error) {
+            console.error("User login error:", error);
+            if (errorBox) {
+                errorBox.style.display = "block";
+                errorBox.textContent = "Server not reachable. Please check backend.";
+            }
+        }
+    });
+}
+
+function initUserRegisterPage() {
+    const form = document.getElementById("userRegisterForm");
+    if (!form) return;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const name = document.getElementById("registerName").value.trim();
+        const email = document.getElementById("registerEmail").value.trim();
+        const password = document.getElementById("registerPassword").value.trim();
+        const errorBox = document.getElementById("userRegisterError");
+
+        if (errorBox) {
+            errorBox.style.display = "none";
+            errorBox.textContent = "";
+        }
+
+        try {
+            const response = await fetch("/user/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                if (errorBox) {
+                    errorBox.style.display = "block";
+                    errorBox.textContent = data.message || "Registration failed";
+                }
+                return;
+            }
+
+            alert("Registration successful. Please login.");
+            window.location.href = "user-login.html";
+        } catch (error) {
+            console.error("User register error:", error);
+            if (errorBox) {
+                errorBox.style.display = "block";
+                errorBox.textContent = "Server not reachable. Please check backend.";
+            }
+        }
+    });
+}
+
 function loadAdminUser() {
     const adminUser = sessionStorage.getItem("adminUser");
+    const adminPages = ["dashboard", "income", "expense", "calendar", "reports"];
     if (!adminUser) {
-        if (document.body.dataset.page !== "admin-login") {
+        if (adminPages.includes(document.body.dataset.page)) {
             window.location.href = "admin-login.html";
         }
         return;
@@ -221,7 +357,7 @@ function renderRecentActivity(transactions = []) {
                 </div>
                 <div class="act-info">
                     <div>${item.title}</div>
-                    <div>${formatDate(item.date)} • ${item.category}</div>
+                    <div>${formatDate(item.date)} â€¢ ${item.category}</div>
                 </div>
                 <div class="${isIncome ? "pos" : "neg"}">${isIncome ? "+" : "-"}${formatCurrency(item.amount)}</div>
             </div>
@@ -601,16 +737,24 @@ async function initReportsPage() {
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setTopbarDate();
-    loadAdminUser();
-    initAdminDropdown();
+    applyUserSession();
     document.querySelectorAll(".mode-toggle").forEach((button) => button.addEventListener("click", toggleTheme));
 
-    switch (document.body.dataset.page) {
+    const page = document.body.dataset.page;
+
+    if (["dashboard", "income", "expense", "calendar", "reports"].includes(page)) {
+        loadAdminUser();
+        initAdminDropdown();
+    }
+
+    switch (page) {
         case "dashboard": initDashboard(); break;
         case "income": initIncomePage(); break;
         case "expense": initExpensePage(); break;
         case "calendar": initCalendarPage(); break;
         case "reports": initReportsPage(); break;
+        case "user-login": initUserLoginPage(); break;
+        case "user-register": initUserRegisterPage(); break;
         default: break;
     }
 });
