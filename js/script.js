@@ -734,6 +734,133 @@ async function initReportsPage() {
     loadReports();
 }
 
+let userModalInstance;
+
+async function initUsersPage() {
+    const tbody = document.getElementById("usersTbody");
+    const userForm = document.getElementById("userForm");
+    const userModal = document.getElementById("userModal");
+    const userIdInput = document.getElementById("userId");
+    const userNameInput = document.getElementById("userName");
+    const userEmailInput = document.getElementById("userEmail");
+    const userPasswordInput = document.getElementById("userPassword");
+    const errorBox = document.getElementById("userFormError");
+    const passwordHint = document.getElementById("passwordHint");
+    const modalLabel = document.getElementById("userModalLabel");
+
+    if (userModal && window.bootstrap) {
+        userModalInstance = bootstrap.Modal.getOrCreateInstance(userModal);
+    }
+
+    window.openUserModal = () => {
+        userIdInput.value = "";
+        userNameInput.value = "";
+        userEmailInput.value = "";
+        userPasswordInput.value = "";
+        userPasswordInput.required = true;
+        passwordHint.textContent = "";
+        errorBox.style.display = "none";
+        modalLabel.textContent = "Add New User";
+    };
+
+    window.openEditUserModal = (id, name, email) => {
+        userIdInput.value = id;
+        userNameInput.value = name;
+        userEmailInput.value = email;
+        userPasswordInput.value = "";
+        userPasswordInput.required = false;
+        passwordHint.textContent = "(Leave blank to keep unchanged)";
+        errorBox.style.display = "none";
+        modalLabel.textContent = "Edit User";
+        if (userModalInstance) {
+            userModalInstance.show();
+        }
+    };
+
+    window.deleteUser = async (id) => {
+        if (!confirm("Are you sure you want to delete this user?")) return;
+        try {
+            await apiFetchJson(`/admin/users/${id}`, { method: "DELETE" });
+            fetchUsers();
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert(error.message || "Failed to delete user");
+        }
+    };
+
+    const fetchUsers = async () => {
+        if (!tbody) return;
+        tbody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        try {
+            const data = await apiFetchJson("/admin/users");
+            const users = data.users || [];
+            
+            if (!users.length) {
+                tbody.innerHTML = "<tr><td colspan='4'>No users found</td></tr>";
+                return;
+            }
+
+            tbody.innerHTML = users.map(user => {
+                const safeName = (user.name || "").replace(/'/g, "\\'");
+                const safeEmail = (user.email || "").replace(/'/g, "\\'");
+                return `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.name || "-"}</td>
+                    <td>${user.email || "-"}</td>
+                    <td>
+                        <button class="btn-action btn-edit" onclick="openEditUserModal('${user.id}', '${safeName}', '${safeEmail}')">Edit</button>
+                        <button class="btn-action btn-delete" onclick="deleteUser('${user.id}')">Delete</button>
+                    </td>
+                </tr>
+                `;
+            }).join("");
+        } catch (error) {
+            console.error("Fetch Users Error:", error);
+            tbody.innerHTML = "<tr><td colspan='4'>Error loading users</td></tr>";
+        }
+    };
+
+    userForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const id = userIdInput.value;
+        const name = userNameInput.value.trim();
+        const email = userEmailInput.value.trim();
+        const password = userPasswordInput.value.trim();
+
+        errorBox.style.display = "none";
+
+        const payload = { name, email };
+        if (password) payload.password = password;
+
+        try {
+            if (id) {
+                // Update User
+                await apiFetchJson(`/admin/users/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                // Add User
+                await apiFetchJson("/admin/users", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, email, password })
+                });
+            }
+            
+            userModalInstance?.hide();
+            fetchUsers();
+        } catch (error) {
+            errorBox.style.display = "block";
+            errorBox.textContent = error.message || "Failed to save user";
+        }
+    });
+
+    fetchUsers();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setTopbarDate();
@@ -742,7 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const page = document.body.dataset.page;
 
-    if (["dashboard", "income", "expense", "calendar", "reports"].includes(page)) {
+    if (["dashboard", "income", "expense", "calendar", "reports", "users"].includes(page)) {
         loadAdminUser();
         initAdminDropdown();
     }
@@ -753,6 +880,7 @@ document.addEventListener("DOMContentLoaded", () => {
         case "expense": initExpensePage(); break;
         case "calendar": initCalendarPage(); break;
         case "reports": initReportsPage(); break;
+        case "users": initUsersPage(); break;
         case "user-login": initUserLoginPage(); break;
         case "user-register": initUserRegisterPage(); break;
         default: break;
