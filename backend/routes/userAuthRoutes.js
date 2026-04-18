@@ -94,4 +94,82 @@ router.post("/login", (req, res) => {
     });
 });
 
+// =======================
+// Change User Password
+// PUT /user/change-password
+// =======================
+router.put("/change-password", (req, res) => {
+    const userId = Number(req.body.userId);
+    const currentPassword = String(req.body.currentPassword || "").trim();
+    const newPassword = String(req.body.newPassword || "").trim();
+
+    if (!userId || !currentPassword || !newPassword) {
+        return res.status(400).json({
+            success: false,
+            message: "User id, current password, and new password are required"
+        });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: "New password must be at least 6 characters long"
+        });
+    }
+
+    if (currentPassword === newPassword) {
+        return res.status(400).json({
+            success: false,
+            message: "New password must be different from the current password"
+        });
+    }
+
+    db.query(
+        "SELECT id FROM users WHERE id = ? AND password = ? LIMIT 1",
+        [userId, currentPassword],
+        (checkErr, results) => {
+            if (checkErr) {
+                console.log("Change Password Check Error:", checkErr);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to verify current password"
+                });
+            }
+
+            if (!results.length) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Current password is incorrect"
+                });
+            }
+
+            db.query(
+                "UPDATE users SET password = ? WHERE id = ?",
+                [newPassword, userId],
+                (updateErr, updateResult) => {
+                    if (updateErr) {
+                        console.log("Change Password Update Error:", updateErr);
+                        return res.status(500).json({
+                            success: false,
+                            message: "Failed to change password"
+                        });
+                    }
+
+                    if (!updateResult.affectedRows) {
+                        return res.status(404).json({
+                            success: false,
+                            message: "User not found"
+                        });
+                    }
+
+                    res.json({
+                        success: true,
+                        message: "Password changed successfully"
+                    });
+                }
+            );
+        }
+    );
+});
+
 module.exports = router;

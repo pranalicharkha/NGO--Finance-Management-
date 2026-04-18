@@ -22,16 +22,29 @@ CREATE TABLE IF NOT EXISTS donors (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ngos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ngo_name VARCHAR(150) NOT NULL,
+    registration_no VARCHAR(80) UNIQUE,
+    location VARCHAR(150),
+    contact_email VARCHAR(150),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    ngo_id INT NOT NULL,
     project_name VARCHAR(150) NOT NULL,
     project_code VARCHAR(50) UNIQUE,
     focus_area VARCHAR(100),
+    description TEXT,
     start_date DATE,
     end_date DATE,
     budget DECIMAL(12,2) DEFAULT 0,
     status ENUM('planned','active','completed','on_hold') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ngo_id) REFERENCES ngos(id)
 );
 
 CREATE TABLE IF NOT EXISTS budgets (
@@ -89,13 +102,25 @@ CREATE INDEX idx_expense_category ON expense(category);
 CREATE INDEX idx_project_status ON projects(status);
 CREATE INDEX idx_donor_type ON donors(donor_type);
 
-INSERT INTO projects (project_name, project_code, focus_area, start_date, end_date, budget, status)
-VALUES
-('Women Empowerment Drive', 'NGO-PROJ-001', 'Women Welfare', '2026-04-01', '2026-12-31', 500000.00, 'active'),
-('Child Education Support', 'NGO-PROJ-002', 'Education', '2026-04-01', '2027-03-31', 750000.00, 'active')
-ON DUPLICATE KEY UPDATE project_name = VALUES(project_name);
-
 INSERT INTO donors (donor_name, donor_type, email, city)
 VALUES
 ('Helping Hands Foundation', 'foundation', 'contact@helpinghands.org', 'Pune'),
 ('Bright Future CSR', 'corporate', 'csr@brightfuture.com', 'Mumbai');
+
+INSERT INTO ngos (ngo_name, registration_no, location, contact_email, description)
+VALUES
+('Nidigo Foundation', 'NGO-REG-001', 'Pune', 'contact@nidigo.org', 'Primary NGO profile for community development initiatives.'),
+('Hope Rural Trust', 'NGO-REG-002', 'Nashik', 'hello@hoperural.org', 'Partner NGO focused on rural education and healthcare outreach.')
+ON DUPLICATE KEY UPDATE ngo_name = VALUES(ngo_name);
+
+INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status)
+SELECT id, 'Women Empowerment Drive', 'NGO-PROJ-001', 'Women Welfare', 'Livelihood and leadership support for women self-help groups.', '2026-04-01', '2026-12-31', 500000.00, 'active'
+FROM ngos
+WHERE registration_no = 'NGO-REG-001'
+ON DUPLICATE KEY UPDATE project_name = VALUES(project_name);
+
+INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status)
+SELECT id, 'Child Education Support', 'NGO-PROJ-002', 'Education', 'School support, books, and mentoring for children in underserved communities.', '2026-04-01', '2027-03-31', 750000.00, 'active'
+FROM ngos
+WHERE registration_no = 'NGO-REG-002'
+ON DUPLICATE KEY UPDATE project_name = VALUES(project_name);

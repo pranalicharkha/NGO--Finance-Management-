@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const mysql = require("mysql2");
+const db = require("./config/db");
 require("dotenv").config();
 
 const app = express();
@@ -13,28 +13,13 @@ app.use(express.json());
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, "..")));
 
-// MySQL Database Connection
-const db = mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "finance_management"
-});
-
-db.connect((err) => {
-    if (err) {
-        console.log("MySQL Connection Failed:", err.message);
-    } else {
-        console.log("Connected to MySQL Database");
-    }
-});
-
 // Import Routes
 const adminRoutes = require("./routes/adminRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
 const userAuthRoutes = require("./routes/userAuthRoutes");
 const userTransactionRoutes = require("./routes/userTransactionRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const projectRoutes = require("./routes/projectRoutes");
 
 // Use Routes
 app.use("/admin", adminRoutes);
@@ -42,6 +27,7 @@ app.use("/admin", adminUserRoutes);
 app.use("/user", userAuthRoutes);
 app.use("/user", userTransactionRoutes);
 app.use("/user", reportRoutes);
+app.use("/user", projectRoutes);
 
 // Login Route
 app.post("/login", (req, res) => {
@@ -72,7 +58,6 @@ app.post("/login", (req, res) => {
     });
 });
 
-// Landing and role entry routes
 // Landing and role entry routes
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "index.html"));

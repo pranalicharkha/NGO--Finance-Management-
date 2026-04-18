@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>My Donations — Nidigo</title>
+  <title>My Donations - Nidigo</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body data-page="user-donations">
-
-<!-- SIDEBAR -->
 <aside class="sidebar" style="background:linear-gradient(180deg,#0d2e4a 0%,var(--accent) 100%)">
   <div class="sidebar-brand">
     <div class="brand-icon"><i class="bi bi-bank2"></i></div>
@@ -23,18 +21,17 @@
     <div class="nav-section-label">Overview</div>
     <a href="user-dashboard.html" class="nav-link"><i class="bi bi-house"></i><span>Dashboard</span></a>
     <div class="nav-section-label">Information</div>
-    <a href="user-projects.html"   class="nav-link"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
+    <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
     <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
     <div class="nav-section-label">My Account</div>
-    <a href="user-donations.html"  class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-profile.html"    class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
+    <a href="user-donations.html" class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
+    <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer">
     <a href="index.html" class="nav-link btn-logout"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a>
   </div>
 </aside>
 
-<!-- TOPBAR -->
 <header class="topbar">
   <div class="topbar-title">My Donations</div>
   <div class="topbar-right">
@@ -47,50 +44,123 @@
   </div>
 </header>
 
-<!-- MAIN -->
 <main class="main-content">
   <div class="page-body">
-
     <div class="page-header">
       <h2>Your Donation History</h2>
-      <p>Complete record of all your contributions to Nidigo Foundation.</p>
+      <p>This page shows records from the <strong>income</strong> table only. Each row is a specific donation/grant entry with its own id, source, category, amount, and notes.</p>
     </div>
 
-    <!-- Summary Cards -->
     <div class="row g-3 section-gap">
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--accent);padding:20px">
           <div class="card-label">Total Donated</div>
-          <div class="card-value" style="font-size:1.6rem;color:var(--accent)">₨ 125,000</div>
+          <div class="card-value" id="donationTotal" style="font-size:1.6rem;color:var(--accent)">Rs 0.00</div>
         </div>
       </div>
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--primary);padding:20px">
-          <div class="card-label">Number of Donations</div>
-          <div class="card-value" style="font-size:1.6rem;color:var(--primary)">8</div>
+          <div class="card-label">Number of Entries</div>
+          <div class="card-value" id="donationCount" style="font-size:1.6rem;color:var(--primary)">0</div>
         </div>
       </div>
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--gold);padding:20px">
-          <div class="card-label">Average Donation</div>
-          <div class="card-value" style="font-size:1.6rem;color:var(--gold)">₨ 15,625</div>
+          <div class="card-label">Average Entry</div>
+          <div class="card-value" id="donationAverage" style="font-size:1.6rem;color:var(--gold)">Rs 0.00</div>
         </div>
       </div>
     </div>
 
-    <!-- Donations Table -->
+    <div class="row g-3 section-gap">
+      <div class="col-12 col-xl-5">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Add Or Edit Donation Entry</div>
+              <div class="chart-subtitle">Create a new income record or update an existing one.</div>
+            </div>
+          </div>
+          <form id="donationForm" class="row g-3">
+            <input type="hidden" id="donationId"/>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="donationDate">Date</label>
+              <input type="date" id="donationDate" class="form-control" required/>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="donationCategory">Category</label>
+              <select id="donationCategory" class="form-select" required>
+                <option value="">Choose category</option>
+                <option value="Donation">Donation</option>
+                <option value="Grant">Grant</option>
+                <option value="Fundraising">Fundraising</option>
+                <option value="Sponsorship">Sponsorship</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="donationSource">Source / Donor</label>
+              <input type="text" id="donationSource" class="form-control" placeholder="UNICEF, NGO Partner, Individual Donor" required/>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="donationMethod">Payment Method</label>
+              <select id="donationMethod" class="form-select">
+                <option value="">Choose method</option>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="card">Card</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="donationAmount">Amount</label>
+              <input type="number" id="donationAmount" class="form-control" min="0.01" step="0.01" required/>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="donationDescription">Description</label>
+              <textarea id="donationDescription" class="form-control" rows="4" placeholder="Add a specific note for this donation entry"></textarea>
+            </div>
+            <div class="col-12 d-flex gap-2 flex-wrap">
+              <button type="submit" class="btn-submit-income"><i class="bi bi-save me-2"></i>Save Entry</button>
+              <button type="button" id="donationCancelBtn" class="btn-reset">Clear</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-7">
+        <div class="chart-card" style="border-left:4px solid var(--gold)">
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <i class="bi bi-info-circle-fill" style="font-size:1.8rem;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
+            <div>
+              <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);font-size:0.95rem">What This Page Shows</div>
+              <p style="color:var(--text-secondary);font-size:0.87rem;margin:0 0 12px 0;line-height:1.75">
+                The rows below are individual income records from the backend database. If you see duplicate entries, that means duplicate rows exist in MySQL, not in the page design.
+              </p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific source</span>
+                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific category</span>
+                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific note</span>
+                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Editable</span>
+              </div>
+              <div id="donationFormMessage" style="display:none;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="reports-card">
       <div class="reports-header">
         <h5 style="margin:0;font-family:'Inter',sans-serif;font-weight:700;font-size:0.95rem">
           <i class="bi bi-list-check me-2" style="color:var(--text-muted)"></i>Donation Records
         </h5>
-        <button onclick="window.print()"
+        <button id="donationExportBtn"
           style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-xs);
                  padding:8px 16px;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;
                  color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;
-                 transition:all 0.2s;"
-          onmouseover="this.style.background='var(--surface-2)'"
-          onmouseout="this.style.background='transparent'">
+                 transition:all 0.2s;">
           <i class="bi bi-download"></i> Export
         </button>
       </div>
@@ -99,101 +169,26 @@
         <table class="txn-table">
           <thead>
             <tr>
-              <th>#</th>
+              <th>ID</th>
               <th><i class="bi bi-calendar3 me-1"></i>Date</th>
-              <th><i class="bi bi-tag me-1"></i>Purpose</th>
+              <th><i class="bi bi-bookmark me-1"></i>Category</th>
+              <th><i class="bi bi-tag me-1"></i>Source</th>
               <th><i class="bi bi-credit-card me-1"></i>Method</th>
               <th><i class="bi bi-currency-rupee me-1"></i>Amount</th>
-              <th><i class="bi bi-file-text me-1"></i>Receipt</th>
+              <th><i class="bi bi-file-text me-1"></i>Description</th>
+              <th>Actions</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">1</td>
-              <td>15 Jan 2025</td>
-              <td><span class="badge-income">Education Project</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">Bank Transfer</td>
-              <td class="amount-income">₨ 25,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">2</td>
-              <td>30 Dec 2024</td>
-              <td><span class="badge-income">Healthcare Camp</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">UPI</td>
-              <td class="amount-income">₨ 15,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">3</td>
-              <td>15 Dec 2024</td>
-              <td><span class="badge-income">Clean Water Initiative</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">Credit Card</td>
-              <td class="amount-income">₨ 20,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">4</td>
-              <td>28 Nov 2024</td>
-              <td><span class="badge-income">Skill Training Program</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">Bank Transfer</td>
-              <td class="amount-income">₨ 10,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">5</td>
-              <td>10 Nov 2024</td>
-              <td><span class="badge-income">General Fund</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">UPI</td>
-              <td class="amount-income">₨ 15,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">6</td>
-              <td>22 Oct 2024</td>
-              <td><span class="badge-income">Women Empowerment</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">Bank Transfer</td>
-              <td class="amount-income">₨ 12,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">7</td>
-              <td>5 Oct 2024</td>
-              <td><span class="badge-income">Education Materials</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">Credit Card</td>
-              <td class="amount-income">₨ 18,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
-            <tr>
-              <td style="color:var(--text-muted);font-size:0.82rem">8</td>
-              <td>20 Sep 2024</td>
-              <td><span class="badge-income">Emergency Relief</span></td>
-              <td style="font-size:0.85rem;color:var(--text-muted)">UPI</td>
-              <td class="amount-income">₨ 10,000</td>
-              <td><a href="#" style="color:var(--accent);font-size:0.85rem"><i class="bi bi-file-pdf"></i> Download</a></td>
-            </tr>
+          <tbody id="donationHistoryBody">
+            <tr><td colspan="8">Loading donation history...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
-
-    <!-- Tax Benefits Info -->
-    <div class="chart-card mt-3" style="border-left:4px solid var(--gold)">
-      <div style="display:flex;align-items:flex-start;gap:14px">
-        <i class="bi bi-info-circle-fill" style="font-size:1.8rem;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
-        <div>
-          <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);font-size:0.95rem">Tax Benefits Available</div>
-          <p style="color:var(--text-secondary);font-size:0.87rem;margin:0;line-height:1.75">
-            All donations to Nidigo Foundation are eligible for <strong style="color:var(--primary)">80G tax exemption</strong> under Indian Income Tax Act. You can claim deductions of up to 50% of your donation amount. Download your donation receipts above and attach them to your ITR filing. For consolidated tax certificates, contact our finance team at <a href="mailto:finance@nidigo.org" style="color:var(--accent);font-weight:600">finance@nidigo.org</a>
-          </p>
-        </div>
-      </div>
-    </div>
-
   </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js"></script>
+<script src="js/script.js?v=20260418c"></script>
 </body>
 </html>
