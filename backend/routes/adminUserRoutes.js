@@ -61,7 +61,7 @@ router.post("/users", (req, res) => {
 router.get("/users", (req, res) => {
     const sql = "SELECT id, name, email FROM users ORDER BY id DESC";
 
-    db.query(sql, (err, results) => {
+    db.query(sql, [], (err, results) => {
         if (err) {
             console.log(err);
             return res.status(500).json({

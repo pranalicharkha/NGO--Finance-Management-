@@ -29,81 +29,155 @@ router.post("/login", (req, res) => {
     );
 });
 
-router.get("/dashboard", async (req, res) => {
+router.post("/income", (req, res) => {
+    const date = req.body.date;
+    const category = req.body.category;
+    const source = req.body.source;
+    const paymentMethod = req.body.payment_method;
+    const description = req.body.description;
+    const amount = Number(req.body.amount);
+
+    if (!date || !category || !source || !amount) {
+        return res.status(400).json({
+            success: false,
+            message: "Date, category, source, and amount are required"
+        });
+    }
+
+    db.query(
+        `INSERT INTO income (date, category, source, payment_method, amount, description)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [date, category, source, paymentMethod, amount, description],
+        (err, result) => {
+            if (err) {
+                console.log("Admin Income Insert Error:", err);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to save income"
+                });
+            }
+
+            res.status(201).json({
+                success: true,
+                message: "Income added successfully",
+                incomeId: result.insertId
+            });
+        }
+    );
+});
+
+router.post("/expense", (req, res) => {
+    const date = req.body.date;
+    const category = req.body.category;
+    const title = req.body.title;
+    const paymentMethod = req.body.payment_method;
+    const description = req.body.description;
+    const amount = Number(req.body.amount);
+
+    if (!date || !category || !title || !amount) {
+        return res.status(400).json({
+            success: false,
+            message: "Date, category, title, and amount are required"
+        });
+    }
+
+    db.query(
+        `INSERT INTO expense (date, category, title, payment_method, amount, description)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [date, category, title, paymentMethod, amount, description],
+        (err, result) => {
+            if (err) {
+                console.log("Admin Expense Insert Error:", err);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to save expense"
+                });
+            }
+
+            res.status(201).json({
+                success: true,
+                message: "Expense added successfully",
+                expenseId: result.insertId
+            });
+        }
+    );
+});
+
+router.get("/dashboard", (req, res) => {
     try {
-        const promiseDb = db.promise();
-
-        const [
-            [incomeTotals],
-            [expenseTotals],
-            [userTotals],
-            [monthlyIncome],
-            [monthlyExpense],
-            [categoryExpense],
-            [paymentMethods],
-            [recentTransactions]
-        ] = await Promise.all([
-            promiseDb.query("SELECT COALESCE(SUM(amount), 0) AS totalIncome FROM income"),
-            promiseDb.query("SELECT COALESCE(SUM(amount), 0) AS totalExpense FROM expense"),
-            promiseDb.query("SELECT COUNT(*) AS totalUsers FROM users"),
-            promiseDb.query(`
-                SELECT DATE_FORMAT(date, '%b') AS month, MONTH(date) AS monthNumber, SUM(amount) AS total
+        // SQLite-compatible queries
+        const incomeTotal = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalIncome FROM income").get();
+        const expenseTotal = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalExpense FROM expense").get();
+        const userTotal = db.prepare("SELECT COUNT(*) AS totalUsers FROM users").get();
+        
+        // Monthly income - SQLite compatible
+        const monthlyIncome = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS total
+            FROM income
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `).all();
+        
+        // Monthly expense - SQLite compatible
+        const monthlyExpense = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS total
+            FROM expense
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `).all();
+        
+        // Category expense - SQLite compatible
+        const categoryExpense = db.prepare(`
+            SELECT category, SUM(amount) AS total
+            FROM expense
+            GROUP BY category
+            ORDER BY total DESC
+        `).all();
+        
+        // Payment methods - SQLite compatible
+        const paymentMethods = db.prepare(`
+            SELECT payment_method AS paymentMethod, SUM(amount) AS total
+            FROM (
+                SELECT payment_method, amount FROM income
+                UNION ALL
+                SELECT payment_method, amount FROM expense
+            ) AS transactions
+            WHERE payment_method IS NOT NULL AND payment_method <> ''
+            GROUP BY payment_method
+            ORDER BY total DESC
+        `).all();
+        
+        // Recent transactions - SQLite compatible
+        const recentTransactions = db.prepare(`
+            SELECT *
+            FROM (
+                SELECT id, date, category, source AS title, amount, 'income' AS type
                 FROM income
-                GROUP BY MONTH(date), DATE_FORMAT(date, '%b')
-                ORDER BY monthNumber
-            `),
-            promiseDb.query(`
-                SELECT DATE_FORMAT(date, '%b') AS month, MONTH(date) AS monthNumber, SUM(amount) AS total
+                UNION ALL
+                SELECT id, date, category, title, amount, 'expense' AS type
                 FROM expense
-                GROUP BY MONTH(date), DATE_FORMAT(date, '%b')
-                ORDER BY monthNumber
-            `),
-            promiseDb.query(`
-                SELECT category, SUM(amount) AS total
-                FROM expense
-                GROUP BY category
-                ORDER BY total DESC
-            `),
-            promiseDb.query(`
-                SELECT payment_method AS paymentMethod, SUM(amount) AS total
-                FROM (
-                    SELECT payment_method, amount FROM income
-                    UNION ALL
-                    SELECT payment_method, amount FROM expense
-                ) AS transactions
-                WHERE payment_method IS NOT NULL AND payment_method <> ''
-                GROUP BY payment_method
-                ORDER BY total DESC
-            `),
-            promiseDb.query(`
-                SELECT *
-                FROM (
-                    SELECT id, date, category, source AS title, amount, 'income' AS type
-                    FROM income
-                    UNION ALL
-                    SELECT id, date, category, title, amount, 'expense' AS type
-                    FROM expense
-                ) AS transactions
-                ORDER BY date DESC, id DESC
-                LIMIT 5
-            `)
-        ]);
+            ) AS transactions
+            ORDER BY date DESC, id DESC
+            LIMIT 5
+        `).all();
 
-        const totalIncome = Number(incomeTotals[0].totalIncome || 0);
-        const totalExpense = Number(expenseTotals[0].totalExpense || 0);
+        const totalIncome = Number(incomeTotal.totalIncome || 0);
+        const totalExpense = Number(expenseTotal.totalExpense || 0);
+        
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
         res.json({
             success: true,
             totalIncome,
             totalExpense,
-            totalUsers: Number(userTotals[0].totalUsers || 0),
+            totalUsers: Number(userTotal.totalUsers || 0),
             balance: totalIncome - totalExpense,
             monthlyIncome: monthlyIncome.map((item) => ({
-                month: item.month,
+                month: monthNames[item.monthNumber - 1] || "Unknown",
                 total: Number(item.total || 0)
             })),
             monthlyExpense: monthlyExpense.map((item) => ({
-                month: item.month,
+                month: monthNames[item.monthNumber - 1] || "Unknown",
                 total: Number(item.total || 0)
             })),
             categoryExpense: categoryExpense.map((item) => ({

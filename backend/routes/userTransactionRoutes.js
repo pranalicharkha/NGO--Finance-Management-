@@ -25,12 +25,12 @@ function buildTransactionFilters(query) {
     const params = [];
 
     if (query.year) {
-        clauses.push("YEAR(date) = ?");
+        clauses.push("CAST(strftime('%Y', date) AS INTEGER) = ?");
         params.push(Number(query.year));
     }
 
     if (query.month) {
-        clauses.push("MONTH(date) = ?");
+        clauses.push("CAST(strftime('%m', date) AS INTEGER) = ?");
         params.push(Number(query.month));
     }
 
@@ -281,9 +281,8 @@ router.delete("/expense/:id", (req, res) => {
     });
 });
 
-router.get("/transactions", async (req, res) => {
+router.get("/transactions", (req, res) => {
     try {
-        const promiseDb = db.promise();
         const type = cleanText(req.query.type);
         const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
 
@@ -293,9 +292,11 @@ router.get("/transactions", async (req, res) => {
         const shouldFetchIncome = !type || type === "income";
         const shouldFetchExpense = !type || type === "expense";
 
-        const incomePromise = shouldFetchIncome
-            ? promiseDb.query(
-                `
+        let incomeResults = [];
+        let expenseResults = [];
+
+        if (shouldFetchIncome) {
+            const sql = `
                 SELECT
                     id,
                     date,
@@ -306,14 +307,12 @@ router.get("/transactions", async (req, res) => {
                     description
                 FROM income
                 ${incomeFilters.whereSql}
-                `,
-                incomeFilters.params
-            )
-            : Promise.resolve([[]]);
+            `;
+            incomeResults = db.prepare(sql).all(incomeFilters.params);
+        }
 
-        const expensePromise = shouldFetchExpense
-            ? promiseDb.query(
-                `
+        if (shouldFetchExpense) {
+            const sql = `
                 SELECT
                     id,
                     date,
@@ -324,12 +323,9 @@ router.get("/transactions", async (req, res) => {
                     description
                 FROM expense
                 ${expenseFilters.whereSql}
-                `,
-                expenseFilters.params
-            )
-            : Promise.resolve([[]]);
-
-        const [[incomeResults], [expenseResults]] = await Promise.all([incomePromise, expensePromise]);
+            `;
+            expenseResults = db.prepare(sql).all(expenseFilters.params);
+        }
 
         const transactions = [
             ...incomeResults.map((item) => ({

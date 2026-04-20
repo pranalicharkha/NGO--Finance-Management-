@@ -415,7 +415,10 @@ async function initIncomePage() {
             return;
         }
         try {
-            const result = await apiFetchJson("/user/income", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            // Use admin endpoint for admin pages, user endpoint for user pages
+            const isAdminPage = ["dashboard", "income", "expense", "calendar", "reports", "users"].includes(document.body.dataset.page);
+            const endpoint = isAdminPage ? "/admin/income" : "/user/income";
+            const result = await apiFetchJson(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
             alert(result.message || "Income added successfully");
             form.reset();
         } catch (error) {
@@ -443,7 +446,10 @@ async function initExpensePage() {
             return;
         }
         try {
-            const result = await apiFetchJson("/user/expense", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            // Use admin endpoint for admin pages, user endpoint for user pages
+            const isAdminPage = ["dashboard", "income", "expense", "calendar", "reports", "users"].includes(document.body.dataset.page);
+            const endpoint = isAdminPage ? "/admin/expense" : "/user/expense";
+            const result = await apiFetchJson(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
             alert(result.message || "Expense added successfully");
             form.reset();
         } catch (error) {

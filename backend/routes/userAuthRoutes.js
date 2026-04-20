@@ -48,7 +48,7 @@ router.post("/register", (req, res) => {
             res.json({
                 success: true,
                 message: "User registered successfully",
-                userId: result.insertId
+                userId: result.lastID || null
             });
         });
     });

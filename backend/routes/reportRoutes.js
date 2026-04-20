@@ -42,67 +42,57 @@ function recentTransactionTitle(item) {
     return item.type === "income" ? item.source : item.title;
 }
 
-router.get("/dashboard", async (req, res) => {
+router.get("/dashboard", (req, res) => {
     try {
-        const promiseDb = db.promise();
         const year = normalizeYear(req.query.year);
 
-        const [
-            [incomeTotalRows],
-            [expenseTotalRows],
-            [incomeMonthlyRows],
-            [expenseMonthlyRows],
-            [categoryRows],
-            [recentRows]
-        ] = await Promise.all([
-            promiseDb.query("SELECT COALESCE(SUM(amount), 0) AS totalIncome FROM income"),
-            promiseDb.query("SELECT COALESCE(SUM(amount), 0) AS totalExpense FROM expense"),
-            promiseDb.query(
-                `
-                SELECT MONTH(date) AS monthNumber, SUM(amount) AS totalIncome
+        // SQLite-compatible queries
+        const incomeTotalRows = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalIncome FROM income").get();
+        const expenseTotalRows = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalExpense FROM expense").get();
+        
+        const incomeMonthlyRows = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalIncome
+            FROM income
+            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `, [year]).all();
+        
+        const expenseMonthlyRows = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalExpense
+            FROM expense
+            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `, [year]).all();
+        
+        // Add month names to the results
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        incomeMonthlyRows.forEach(row => row.month = monthNames[row.monthNumber - 1] || "Unknown");
+        expenseMonthlyRows.forEach(row => row.month = monthNames[row.monthNumber - 1] || "Unknown");
+        
+        const categoryRows = db.prepare(`
+            SELECT category, SUM(amount) AS totalExpense
+            FROM expense
+            GROUP BY category
+            ORDER BY totalExpense DESC
+        `).all();
+        
+        const recentRows = db.prepare(`
+            SELECT *
+            FROM (
+                SELECT id, date, category, source, NULL AS title, amount, 'income' AS type
                 FROM income
-                WHERE YEAR(date) = ?
-                GROUP BY MONTH(date)
-                ORDER BY MONTH(date)
-                `,
-                [year]
-            ),
-            promiseDb.query(
-                `
-                SELECT MONTH(date) AS monthNumber, SUM(amount) AS totalExpense
+                UNION ALL
+                SELECT id, date, category, NULL AS source, title, amount, 'expense' AS type
                 FROM expense
-                WHERE YEAR(date) = ?
-                GROUP BY MONTH(date)
-                ORDER BY MONTH(date)
-                `,
-                [year]
-            ),
-            promiseDb.query(
-                `
-                SELECT category, SUM(amount) AS totalExpense
-                FROM expense
-                GROUP BY category
-                ORDER BY totalExpense DESC
-                `
-            ),
-            promiseDb.query(
-                `
-                SELECT *
-                FROM (
-                    SELECT id, date, category, source, NULL AS title, amount, 'income' AS type
-                    FROM income
-                    UNION ALL
-                    SELECT id, date, category, NULL AS source, title, amount, 'expense' AS type
-                    FROM expense
-                ) AS transactions
-                ORDER BY date DESC, id DESC
-                LIMIT 5
-                `
-            )
-        ]);
+            ) AS transactions
+            ORDER BY date DESC, id DESC
+            LIMIT 5
+        `).all();
 
-        const totalIncome = toNumber(incomeTotalRows[0].totalIncome);
-        const totalExpense = toNumber(expenseTotalRows[0].totalExpense);
+        const totalIncome = toNumber(incomeTotalRows.totalIncome);
+        const totalExpense = toNumber(expenseTotalRows.totalExpense);
         const monthlySeries = buildMonthlySeries(incomeMonthlyRows, expenseMonthlyRows);
 
         const monthlyIncome = monthlySeries.map((item) => ({
@@ -150,33 +140,26 @@ router.get("/dashboard", async (req, res) => {
     }
 });
 
-router.get("/monthly-report", async (req, res) => {
+router.get("/monthly-report", (req, res) => {
     try {
-        const promiseDb = db.promise();
         const year = normalizeYear(req.query.year);
 
-        const [[incomeRows], [expenseRows]] = await Promise.all([
-            promiseDb.query(
-                `
-                SELECT MONTH(date) AS monthNumber, SUM(amount) AS totalIncome
-                FROM income
-                WHERE YEAR(date) = ?
-                GROUP BY MONTH(date)
-                ORDER BY MONTH(date)
-                `,
-                [year]
-            ),
-            promiseDb.query(
-                `
-                SELECT MONTH(date) AS monthNumber, SUM(amount) AS totalExpense
-                FROM expense
-                WHERE YEAR(date) = ?
-                GROUP BY MONTH(date)
-                ORDER BY MONTH(date)
-                `,
-                [year]
-            )
-        ]);
+        // SQLite-compatible queries
+        const incomeRows = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalIncome
+            FROM income
+            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `, [year]).all();
+        
+        const expenseRows = db.prepare(`
+            SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalExpense
+            FROM expense
+            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            GROUP BY monthNumber
+            ORDER BY monthNumber
+        `, [year]).all();
 
         const monthlySeries = buildMonthlySeries(incomeRows, expenseRows);
 
@@ -208,31 +191,27 @@ router.get("/monthly-report", async (req, res) => {
     }
 });
 
-router.get("/category-report", async (req, res) => {
+router.get("/category-report", (req, res) => {
     try {
-        const promiseDb = db.promise();
         const year = normalizeYear(req.query.year);
         const month = normalizeMonth(req.query.month);
 
+        // SQLite-compatible query
+        let sql = `
+            SELECT category, SUM(amount) AS totalExpense
+            FROM expense
+            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+        `;
         const params = [year];
-        let monthFilterSql = "";
 
         if (month) {
-            monthFilterSql = "AND MONTH(date) = ?";
+            sql += " AND CAST(strftime('%m', date) AS INTEGER) = ?";
             params.push(month);
         }
 
-        const [rows] = await promiseDb.query(
-            `
-            SELECT category, SUM(amount) AS totalExpense
-            FROM expense
-            WHERE YEAR(date) = ?
-            ${monthFilterSql}
-            GROUP BY category
-            ORDER BY totalExpense DESC
-            `,
-            params
-        );
+        sql += " GROUP BY category ORDER BY totalExpense DESC";
+
+        const rows = db.prepare(sql, params).all();
 
         const categories = rows.map((item) => ({
             category: item.category,
