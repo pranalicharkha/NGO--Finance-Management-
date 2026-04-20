@@ -23,6 +23,7 @@
     <a href="user-calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
     <div class="nav-section-label">My Account</div>
     <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
+    <a href="user-expenses.html" class="nav-link"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer"><a href="index.html" class="nav-link btn-logout"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a></div>
@@ -97,24 +98,35 @@
         </div>
       </div>
       <div class="row g-3">
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-4">
           <div style="padding:18px;border:1px solid var(--border);border-radius:18px;background:var(--surface-2);height:100%;">
             <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">Donations</div>
             <div style="color:var(--text-muted);font-size:0.88rem;line-height:1.7;margin-bottom:14px;">
               Add, edit, delete, and export donation entries from the donation history page.
             </div>
-            <a href="user-donations.html?v=20260418c" class="btn-submit-income" style="display:inline-flex;align-items:center;text-decoration:none;">
+            <a href="user-donations.html" class="btn-submit-income" style="display:inline-flex;align-items:center;text-decoration:none;">
               <i class="bi bi-pencil-square me-2"></i>Open Donations
             </a>
           </div>
         </div>
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-4">
+          <div style="padding:18px;border:1px solid var(--border);border-radius:18px;background:var(--surface-2);height:100%;">
+            <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">Expenses</div>
+            <div style="color:var(--text-muted);font-size:0.88rem;line-height:1.7;margin-bottom:14px;">
+              Add, edit, delete, and export expense records from the new expense history page.
+            </div>
+            <a href="user-expenses.html" class="btn-submit-expense" style="display:inline-flex;align-items:center;text-decoration:none;background:var(--danger);color:white;padding:10px 18px;border-radius:8px;font-weight:600;font-size:0.9rem;">
+              <i class="bi bi-wallet2 me-2"></i>Open Expenses
+            </a>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
           <div style="padding:18px;border:1px solid var(--border);border-radius:18px;background:var(--surface-2);height:100%;">
             <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">NGO / Project</div>
             <div style="color:var(--text-muted);font-size:0.88rem;line-height:1.7;margin-bottom:14px;">
               Create NGOs, add projects under each NGO, and update existing NGO or project records.
             </div>
-            <a href="user-projects.html?v=20260418b" class="btn-submit-income" style="display:inline-flex;align-items:center;text-decoration:none;">
+            <a href="user-projects.html" class="btn-submit-income" style="display:inline-flex;align-items:center;text-decoration:none;">
               <i class="bi bi-folder2-open me-2"></i>Open NGO / Project
             </a>
           </div>

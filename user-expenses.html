@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>My Donations - Nidigo</title>
+  <title>My Expenses - Nidigo</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
-<body data-page="user-donations">
+<body data-page="user-expenses">
 <aside class="sidebar" style="background:linear-gradient(180deg,#0d2e4a 0%,var(--accent) 100%)">
   <div class="sidebar-brand">
     <div class="brand-icon"><i class="bi bi-bank2"></i></div>
@@ -25,8 +25,8 @@
     <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
     <a href="user-calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
     <div class="nav-section-label">My Account</div>
-    <a href="user-donations.html" class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-expenses.html" class="nav-link"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
+    <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
+    <a href="user-expenses.html" class="nav-link active"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer">
@@ -35,7 +35,7 @@
 </aside>
 
 <header class="topbar">
-  <div class="topbar-title">My Donations</div>
+  <div class="topbar-title">My Expenses</div>
   <div class="topbar-right">
     <span class="topbar-date" id="topbarDate"></span>
     <button class="mode-toggle" title="Toggle theme"><i class="bi bi-moon-stars-fill"></i></button>
@@ -49,27 +49,27 @@
 <main class="main-content">
   <div class="page-body">
     <div class="page-header">
-      <h2>Your Donation History</h2>
-      <p>This page shows records from the <strong>income</strong> table only. Each row is a specific donation/grant entry with its own id, source, category, amount, and notes.</p>
+      <h2>Your Expense History</h2>
+      <p>This page shows records from the <strong>expense</strong> table only. Each row is a specific expense entry with its own id, title, category, amount, and notes.</p>
     </div>
 
     <div class="row g-3 section-gap">
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--accent);padding:20px">
-          <div class="card-label">Total Donated</div>
-          <div class="card-value" id="donationTotal" style="font-size:1.6rem;color:var(--accent)">Rs 0.00</div>
+          <div class="card-label">Total Expended</div>
+          <div class="card-value" id="expenseTotal" style="font-size:1.6rem;color:var(--accent)">Rs 0.00</div>
         </div>
       </div>
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--primary);padding:20px">
           <div class="card-label">Number of Entries</div>
-          <div class="card-value" id="donationCount" style="font-size:1.6rem;color:var(--primary)">0</div>
+          <div class="card-value" id="expenseCount" style="font-size:1.6rem;color:var(--primary)">0</div>
         </div>
       </div>
       <div class="col-12 col-md-4">
         <div class="stat-card" style="border-left:4px solid var(--gold);padding:20px">
           <div class="card-label">Average Entry</div>
-          <div class="card-value" id="donationAverage" style="font-size:1.6rem;color:var(--gold)">Rs 0.00</div>
+          <div class="card-value" id="expenseAverage" style="font-size:1.6rem;color:var(--gold)">Rs 0.00</div>
         </div>
       </div>
     </div>
@@ -79,34 +79,37 @@
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Add Or Edit Donation Entry</div>
-              <div class="chart-subtitle">Create a new income record or update an existing one.</div>
+              <div class="chart-title">Add Or Edit Expense Entry</div>
+              <div class="chart-subtitle">Create a new expense record or update an existing one.</div>
             </div>
           </div>
-          <form id="donationForm" class="row g-3">
-            <input type="hidden" id="donationId"/>
+          <form id="expenseForm" class="row g-3">
+            <input type="hidden" id="expId"/>
             <div class="col-12 col-md-6">
               <label class="form-label" for="donationDate">Date</label>
-              <input type="date" id="donationDate" class="form-control" required/>
+              <input type="date" id="expDate" class="form-control" required/>
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="donationCategory">Category</label>
-              <select id="donationCategory" class="form-select" required>
+              <select id="expCategory" class="form-select" required>
                 <option value="">Choose category</option>
-                <option value="Donation">Donation</option>
-                <option value="Grant">Grant</option>
-                <option value="Fundraising">Fundraising</option>
-                <option value="Sponsorship">Sponsorship</option>
+                <option value="Salary">Salary</option>
+                <option value="Project">Project</option>
+                <option value="Materials">Materials</option>
+                <option value="Utilities">Utilities</option>
+                <option value="Rent">Rent</option>
+                <option value="Travel">Travel</option>
+                <option value="Training">Training</option>
                 <option value="Other">Other</option>
               </select>
             </div>
             <div class="col-12">
-              <label class="form-label" for="donationSource">Source / Donor</label>
-              <input type="text" id="donationSource" class="form-control" placeholder="UNICEF, NGO Partner, Individual Donor" required/>
+              <label class="form-label" for="donationSource">Expense Title</label>
+              <input type="text" id="expTitle" class="form-control" placeholder="e.g. Office Rent, Field Supplies" required/>
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="donationMethod">Payment Method</label>
-              <select id="donationMethod" class="form-select">
+              <select id="expPaymentMethod" class="form-select">
                 <option value="">Choose method</option>
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
@@ -117,15 +120,15 @@
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="donationAmount">Amount</label>
-              <input type="number" id="donationAmount" class="form-control" min="0.01" step="0.01" required/>
+              <input type="number" id="expAmount" class="form-control" min="0.01" step="0.01" required/>
             </div>
             <div class="col-12">
               <label class="form-label" for="donationDescription">Description</label>
-              <textarea id="donationDescription" class="form-control" rows="4" placeholder="Add a specific note for this donation entry"></textarea>
+              <textarea id="expDesc" class="form-control" rows="4" placeholder="Add a specific note for this expense entry"></textarea>
             </div>
             <div class="col-12 d-flex gap-2 flex-wrap">
-              <button type="submit" class="btn-submit-income"><i class="bi bi-save me-2"></i>Save Entry</button>
-              <button type="button" id="donationCancelBtn" class="btn-reset">Clear</button>
+              <button type="submit" class="btn-submit-expense"><i class="bi bi-save me-2"></i>Save Entry</button>
+              <button type="button" id="expenseCancelBtn" class="btn-reset">Clear</button>
             </div>
           </form>
         </div>
@@ -135,18 +138,18 @@
         <div class="chart-card" style="border-left:4px solid var(--gold)">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Donation Flow</div>
-              <div class="chart-subtitle">A live view of donation amounts grouped by date.</div>
+              <div class="chart-title">Expense Flow</div>
+              <div class="chart-subtitle">A live view of expense amounts grouped by date.</div>
             </div>
             <span class="chart-badge">Live</span>
           </div>
           <div style="height:300px;position:relative;">
-            <canvas id="donationTrendChart"></canvas>
+            <canvas id="expenseTrendChart"></canvas>
           </div>
-          <div id="donationTrendChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">
-            No donation data available yet. Add your first donation entry to see the graph.
+          <div id="expenseTrendChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">
+            No expense data available yet. Add your first expense entry to see the graph.
           </div>
-          <div id="donationFormMessage" style="display:none;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
+          <div id="expenseFormMessage" style="display:none;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
         </div>
       </div>
     </div>
@@ -154,9 +157,9 @@
     <div class="reports-card">
       <div class="reports-header">
         <h5 style="margin:0;font-family:'Inter',sans-serif;font-weight:700;font-size:0.95rem">
-          <i class="bi bi-list-check me-2" style="color:var(--text-muted)"></i>Donation Records
+          <i class="bi bi-list-check me-2" style="color:var(--text-muted)"></i>Expense Records
         </h5>
-        <button id="donationExportBtn"
+        <button id="expenseExportBtn"
           style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-xs);
                  padding:8px 16px;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;
                  color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;
@@ -172,15 +175,15 @@
               <th>ID</th>
               <th><i class="bi bi-calendar3 me-1"></i>Date</th>
               <th><i class="bi bi-bookmark me-1"></i>Category</th>
-              <th><i class="bi bi-tag me-1"></i>Source</th>
+              <th><i class="bi bi-tag me-1"></i>Title</th>
               <th><i class="bi bi-credit-card me-1"></i>Method</th>
               <th><i class="bi bi-currency-rupee me-1"></i>Amount</th>
               <th><i class="bi bi-file-text me-1"></i>Description</th>
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="donationHistoryBody">
-            <tr><td colspan="8">Loading donation history...</td></tr>
+          <tbody id="expenseHistoryBody">
+            <tr><td colspan="8">Loading expense history...</td></tr>
           </tbody>
         </table>
       </div>

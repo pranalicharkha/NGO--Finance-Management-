@@ -510,21 +510,33 @@ async function initCalendarPage() {
             cell.addEventListener("click", () => {
                 const detailBox = document.getElementById("selectedDayRecords");
                 if (!detailBox) return;
-                if (!dayTransactions.length) {
-                    detailBox.innerHTML = `<p>No transactions on ${dateStr}</p>`;
-                    return;
-                }
-                detailBox.innerHTML = `
-                    <h5 style="margin-bottom:10px;">Transactions on ${dateStr}</h5>
-                    ${dayTransactions.map((item) => `
-                        <div style="margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                
+                const txHtml = dayTransactions.length === 0 
+                    ? `<p>No transactions on ${dateStr}</p>` 
+                    : `<h5 style="margin-bottom:10px;">Transactions on ${dateStr}</h5>
+                       ${dayTransactions.map((item) => `
+                        <div style="margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:8px; position: relative;">
                             <strong>${item.type.toUpperCase()}</strong><br>
                             ${item.source ? `Source: ${item.source}` : `Title: ${item.title}`}<br>
                             Category: ${item.category}<br>
                             Amount: ${formatCurrency(item.amount)}
+                            <button class="btn-filter" style="position: absolute; right: 10px; top: 10px; background:var(--danger); padding:4px 8px; font-size:0.75rem" onclick="deleteCalendarEntry('${item.type}', ${item.id})">Delete</button>
                         </div>
-                    `).join("")}
+                       `).join("")}`;
+                
+                detailBox.innerHTML = `
+                    ${txHtml}
+                    <hr>
+                    <div style="display:flex;gap:10px;margin-bottom:10px;">
+                        <button class="btn-submit-income" style="flex:1;padding:8px;font-size:0.8rem;border-radius:6px;border:none;color:white;cursor:pointer;" onclick="showCalendarForm('income', '${dateStr}')">+ Add Income</button>
+                        <button class="btn-submit-expense" style="flex:1;padding:8px;font-size:0.8rem;background:var(--danger);border-radius:6px;border:none;color:white;cursor:pointer;" onclick="showCalendarForm('expense', '${dateStr}')">+ Add Expense</button>
+                    </div>
+                    <div id="calendarFormContainer"></div>
                 `;
+                
+                // Active cell highlighting
+                document.querySelectorAll(".cal-day").forEach(c => c.style.border = "");
+                cell.style.border = "2px solid var(--accent)";
             });
 
             grid.appendChild(cell);
@@ -1143,6 +1155,250 @@ async function initUserDonationsPage() {
         console.error("Donation history error:", error);
         tbody.innerHTML = "<tr><td colspan='8'>Unable to load donation history</td></tr>";
         setMessage(error.message || "Unable to load donation history.", "error");
+    }
+}
+
+async function initUserExpensesPage() {
+    const tbody = document.getElementById("expenseHistoryBody");
+    const exportButton = document.getElementById("expenseExportBtn");
+    const expenseForm = document.getElementById("expenseForm");
+    const messageBox = document.getElementById("expenseFormMessage");
+    const expenseChartCanvas = document.getElementById("expenseTrendChart");
+    const expenseChartEmpty = document.getElementById("expenseTrendChartEmpty");
+    if (!tbody) return;
+
+    const expenseFields = {
+        id: document.getElementById("expenseId"),
+        date: document.getElementById("expenseDate"),
+        category: document.getElementById("expenseCategory"),
+        title: document.getElementById("expenseTitle"),
+        method: document.getElementById("expenseMethod"),
+        amount: document.getElementById("expenseAmount"),
+        description: document.getElementById("expenseDescription")
+    };
+
+    let expenseCache = [];
+
+    const setMessage = (text, tone = "info") => {
+        if (!messageBox) return;
+        if (!text) {
+            messageBox.style.display = "none";
+            messageBox.textContent = "";
+            return;
+        }
+
+        const styles = {
+            info: "background:rgba(26,86,219,0.08);color:#1a56db;border:1px solid rgba(26,86,219,0.18);",
+            success: "background:rgba(15,110,77,0.08);color:var(--primary);border:1px solid rgba(15,110,77,0.18);",
+            error: "background:rgba(220,38,38,0.08);color:var(--danger);border:1px solid rgba(220,38,38,0.18);"
+        };
+
+        messageBox.style.cssText = `display:block;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;${styles[tone] || styles.info}`;
+        messageBox.textContent = text;
+    };
+
+    const resetExpenseForm = () => {
+        expenseForm?.reset();
+        expenseFields.id.value = "";
+    };
+
+    const fillExpenseForm = (item) => {
+        expenseFields.id.value = item.id;
+        expenseFields.date.value = normalizeDateValue(item.date);
+        expenseFields.category.value = item.category || "";
+        expenseFields.title.value = item.title || "";
+        expenseFields.method.value = item.payment_method || "";
+        expenseFields.amount.value = item.amount ?? "";
+        expenseFields.description.value = item.description || "";
+        expenseFields.title.focus();
+    };
+
+    const renderExpenseRows = (expenses) => {
+        if (!expenses.length) {
+            tbody.innerHTML = "<tr><td colspan='8'>No expense records yet</td></tr>";
+            return;
+        }
+
+        tbody.innerHTML = expenses.map((item) => `
+            <tr>
+                <td>${item.id}</td>
+                <td>${formatDate(item.date)}</td>
+                <td>${escapeHtml(item.category || "-")}</td>
+                <td>${escapeHtml(item.title || "-")}</td>
+                <td>${escapeHtml(formatPaymentMethod(item.payment_method))}</td>
+                <td class="amount-expense">${formatCurrency(item.amount)}</td>
+                <td>${escapeHtml(item.description || "-")}</td>
+                <td>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="button" class="btn-filter" data-action="edit-expense" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;">Edit</button>
+                        <button type="button" class="btn-filter" data-action="delete-expense" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--danger);">Delete</button>
+                    </div>
+                </td>
+            </tr>
+        `).join("");
+    };
+
+    const renderExpenseChart = (expenses) => {
+        if (!expenseChartCanvas || typeof Chart === "undefined") return;
+
+        if (!expenses.length) {
+            destroyChart(expenseTrendChart);
+            if (expenseChartEmpty) expenseChartEmpty.style.display = "block";
+            return;
+        }
+
+        const grouped = expenses
+            .slice()
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .reduce((map, item) => {
+                const key = normalizeDateValue(item.date);
+                map[key] = (map[key] || 0) + Number(item.amount || 0);
+                return map;
+            }, {});
+
+        const labels = Object.keys(grouped);
+        const values = labels.map((label) => grouped[label]);
+
+        if (expenseChartEmpty) expenseChartEmpty.style.display = "none";
+        destroyChart(expenseTrendChart);
+        expenseTrendChart = new Chart(expenseChartCanvas, {
+            type: "line",
+            data: {
+                labels: labels.map((label) => formatDate(label)),
+                datasets: [{
+                    label: "Expense amount",
+                    data: values,
+                    borderColor: "#0f6e4d",
+                    backgroundColor: "rgba(15,110,77,0.14)",
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 4,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => formatCurrency(value)
+                        }
+                    }
+                }
+            }
+        });
+    };
+
+    const loadExpenseData = async () => {
+        const data = await apiFetchJson(`/user/transactions?type=expense&userId=${getUserId()}`);
+        const expenses = data.transactions || [];
+        expenseCache = expenses;
+        const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const average = expenses.length ? total / expenses.length : 0;
+
+        setText("expenseTotal", formatCurrency(total));
+        setText("expenseCount", String(expenses.length));
+        setText("expenseAverage", formatCurrency(average));
+        renderExpenseRows(expenses);
+        renderExpenseChart(expenses);
+        return expenses;
+    };
+
+    tbody.addEventListener("click", async (event) => {
+        const actionButton = event.target.closest("[data-action]");
+        if (!actionButton) return;
+
+        const item = expenseCache.find((entry) => String(entry.id) === String(actionButton.dataset.id));
+        if (!item) return;
+
+        if (actionButton.dataset.action === "edit-expense") {
+            fillExpenseForm(item);
+            setMessage(`Editing expense record #${item.id}`, "info");
+            return;
+        }
+
+        if (actionButton.dataset.action === "delete-expense") {
+            if (!window.confirm(`Delete expense record #${item.id}?`)) return;
+            try {
+                await apiFetchJson(`/user/expense/${item.id}?userId=${getUserId()}`, { method: "DELETE" });
+                setMessage(`Expense record #${item.id} deleted successfully.`, "success");
+                await loadExpenseData();
+                resetExpenseForm();
+            } catch (error) {
+                setMessage(error.message || "Failed to delete expense record.", "error");
+            }
+        }
+    });
+
+    expenseForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const payload = {
+            userId: getUserId(),
+            date: expenseFields.date.value,
+            category: expenseFields.category.value,
+            title: expenseFields.title.value.trim(),
+            payment_method: expenseFields.method.value || null,
+            amount: expenseFields.amount.value,
+            description: expenseFields.description.value.trim()
+        };
+
+        try {
+            if (expenseFields.id.value) {
+                await apiFetchJson(`/user/expense/${expenseFields.id.value}?userId=${getUserId()}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                setMessage(`Expense record #${expenseFields.id.value} updated successfully.`, "success");
+            } else {
+                await apiFetchJson("/user/expense", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                setMessage("New expense record added successfully.", "success");
+            }
+
+            resetExpenseForm();
+            await loadExpenseData();
+        } catch (error) {
+            setMessage(error.message || "Failed to save expense entry.", "error");
+        }
+    });
+
+    document.getElementById("expenseCancelBtn")?.addEventListener("click", () => {
+        resetExpenseForm();
+        setMessage("");
+    });
+
+    try {
+        const expenses = await loadExpenseData();
+
+        exportButton?.addEventListener("click", () => {
+            const rows = [["Record ID", "Date", "Category", "Title", "Payment Method", "Amount", "Description"]];
+            expenses.forEach((item) => {
+                rows.push([
+                    item.id,
+                    normalizeDateValue(item.date),
+                    item.category || "",
+                    item.title || "",
+                    formatPaymentMethod(item.payment_method),
+                    item.amount,
+                    item.description || ""
+                ]);
+            });
+            exportRowsAsCsv("expense-history.csv", rows);
+        });
+    } catch (error) {
+        console.error("Expense history error:", error);
+        tbody.innerHTML = "<tr><td colspan='8'>Unable to load expense history</td></tr>";
+        setMessage(error.message || "Unable to load expense history.", "error");
     }
 }
 
@@ -1994,6 +2250,7 @@ document.addEventListener("DOMContentLoaded", () => {
         case "users": initUsersPage(); break;
         case "user-dashboard": initUserDashboardPage(); break;
         case "user-donations": initUserDonationsPage(); break;
+        case "user-expenses": initUserExpensesPage(); break;
         case "user-calendar": initUserCalendarPage(); break;
         case "user-projects": initUserProjectsPage(); break;
         case "user-transparency": initUserTransparencyPage(); break;
@@ -2003,3 +2260,77 @@ document.addEventListener("DOMContentLoaded", () => {
         default: break;
     }
 });
+
+window.deleteCalendarEntry = async function(type, id) {
+    if (!confirm("Are you sure you want to delete this entry?")) return;
+    try {
+        await apiFetchJson(`/user/${type}/${id}?userId=${getUserId()}`, { method: "DELETE" });
+        alert("Entry deleted");
+        initCalendarPage(); // Refresh calendar
+    } catch(err) {
+        alert("Failed to delete: " + err.message);
+    }
+};
+
+window.showCalendarForm = function(type, dateStr) {
+    const container = document.getElementById("calendarFormContainer");
+    if (!container) return;
+    
+    // Basic form HTML
+    container.innerHTML = `
+        <form id="calInlineForm" style="padding:15px; border:1px solid #eee; border-radius:8px; background:#f9fafb; margin-top:10px;">
+            <p style="margin-top:0;font-weight:bold;color:var(--text-main)">Add ${type === 'income' ? 'Income' : 'Expense'} for ${dateStr}</p>
+            <input type="hidden" id="calDate" value="${dateStr}">
+            <div class="form-group mb-2">
+                <label class="form-label" style="font-size:0.8rem">Category</label>
+                <select id="calCat" class="form-select form-select-sm" required>
+                    <option value="">Select...</option>
+                    ${type === 'income' 
+                        ? '<option value="Donation">Donation</option><option value="Grant">Grant</option><option value="Sponsorship">Sponsorship</option><option value="Other">Other</option>'
+                        : '<option value="Salary">Salary</option><option value="Project">Project</option><option value="Rent">Rent</option><option value="Other">Other</option>'}
+                </select>
+            </div>
+            <div class="form-group mb-2">
+                <label class="form-label" style="font-size:0.8rem">${type === 'income' ? 'Source / Donor' : 'Expense Title'}</label>
+                <input type="text" id="calTitle" class="form-control form-control-sm" required>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label" style="font-size:0.8rem">Amount (Rs)</label>
+                <input type="number" id="calAmt" class="form-control form-control-sm" required min="1">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="${type === 'income' ? 'btn-submit-income' : 'btn-submit-expense'}" style="flex:1;padding:6px;font-size:0.8rem;border:none;border-radius:6px;color:white">Save</button>
+                <button type="button" class="btn-reset" style="flex:1;padding:6px;font-size:0.8rem" onclick="document.getElementById('calendarFormContainer').innerHTML=''">Cancel</button>
+            </div>
+        </form>
+    `;
+    
+    document.getElementById("calInlineForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const payload = {
+            userId: getUserId(),
+            date: document.getElementById("calDate").value,
+            category: document.getElementById("calCat").value,
+            amount: document.getElementById("calAmt").value
+        };
+        
+        if (type === 'income') {
+            payload.source = document.getElementById("calTitle").value.trim();
+        } else {
+            payload.title = document.getElementById("calTitle").value.trim();
+        }
+        
+        try {
+            await apiFetchJson(`/user/${type}?userId=${getUserId()}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            alert(`${type === 'income' ? 'Income' : 'Expense'} added !`);
+            container.innerHTML = "";
+            initCalendarPage(); // Refresh calendar completely
+        } catch (err) {
+            alert("Failed to save: " + err.message);
+        }
+    });
+};
