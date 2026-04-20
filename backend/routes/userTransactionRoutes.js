@@ -46,6 +46,7 @@ function buildTransactionFilters(query) {
 }
 
 router.post("/income", (req, res) => {
+    const userId = Number(req.body.userId);
     const date = cleanText(req.body.date);
     const category = cleanText(req.body.category);
     const source = cleanText(req.body.source);
@@ -53,19 +54,19 @@ router.post("/income", (req, res) => {
     const description = cleanText(req.body.description);
     const amount = normalizeAmount(req.body.amount);
 
-    if (!isValidDate(date) || !category || !source || !amount) {
+    if (!userId || !isValidDate(date) || !category || !source || !amount) {
         return res.status(400).json({
             success: false,
-            message: "Date, category, source, and a valid amount are required"
+            message: "User ID, date, category, source, and a valid amount are required"
         });
     }
 
     db.query(
         `
-        INSERT INTO income (date, category, source, payment_method, amount, description)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO income (user_id, date, category, source, payment_method, amount, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-        [date, category, source, paymentMethod, amount, description],
+        [userId, date, category, source, paymentMethod, amount, description],
         (err, result) => {
             if (err) {
                 console.log("Income Insert Error:", err);
@@ -85,6 +86,7 @@ router.post("/income", (req, res) => {
 });
 
 router.post("/expense", (req, res) => {
+    const userId = Number(req.body.userId);
     const date = cleanText(req.body.date);
     const category = cleanText(req.body.category);
     const title = cleanText(req.body.title);
@@ -92,19 +94,19 @@ router.post("/expense", (req, res) => {
     const description = cleanText(req.body.description);
     const amount = normalizeAmount(req.body.amount);
 
-    if (!isValidDate(date) || !category || !title || !amount) {
+    if (!userId || !isValidDate(date) || !category || !title || !amount) {
         return res.status(400).json({
             success: false,
-            message: "Date, category, title, and a valid amount are required"
+            message: "User ID, date, category, title, and a valid amount are required"
         });
     }
 
     db.query(
         `
-        INSERT INTO expense (date, category, title, payment_method, amount, description)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO expense (user_id, date, category, title, payment_method, amount, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-        [date, category, title, paymentMethod, amount, description],
+        [userId, date, category, title, paymentMethod, amount, description],
         (err, result) => {
             if (err) {
                 console.log("Expense Insert Error:", err);
@@ -125,6 +127,7 @@ router.post("/expense", (req, res) => {
 
 router.put("/income/:id", (req, res) => {
     const incomeId = Number(req.params.id);
+    const userId = Number(req.body.userId);
     const date = cleanText(req.body.date);
     const category = cleanText(req.body.category);
     const source = cleanText(req.body.source);
@@ -132,10 +135,10 @@ router.put("/income/:id", (req, res) => {
     const description = cleanText(req.body.description);
     const amount = normalizeAmount(req.body.amount);
 
-    if (!incomeId || !isValidDate(date) || !category || !source || !amount) {
+    if (!incomeId || !userId || !isValidDate(date) || !category || !source || !amount) {
         return res.status(400).json({
             success: false,
-            message: "Valid income id, date, category, source, and amount are required"
+            message: "Valid income id, user id, date, category, source, and amount are required"
         });
     }
 
@@ -143,9 +146,9 @@ router.put("/income/:id", (req, res) => {
         `
         UPDATE income
         SET date = ?, category = ?, source = ?, payment_method = ?, amount = ?, description = ?
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
         `,
-        [date, category, source, paymentMethod, amount, description, incomeId],
+        [date, category, source, paymentMethod, amount, description, incomeId, userId],
         (err, result) => {
             if (err) {
                 console.log("Income Update Error:", err);
@@ -172,14 +175,15 @@ router.put("/income/:id", (req, res) => {
 
 router.delete("/income/:id", (req, res) => {
     const incomeId = Number(req.params.id);
-    if (!incomeId) {
+    const userId = Number(req.query.userId);
+    if (!incomeId || !userId) {
         return res.status(400).json({
             success: false,
-            message: "Valid income id is required"
+            message: "Valid income id and user id are required"
         });
     }
 
-    db.query("DELETE FROM income WHERE id = ?", [incomeId], (err, result) => {
+    db.query("DELETE FROM income WHERE id = ? AND user_id = ?", [incomeId, userId], (err, result) => {
         if (err) {
             console.log("Income Delete Error:", err);
             return res.status(500).json({
@@ -204,6 +208,7 @@ router.delete("/income/:id", (req, res) => {
 
 router.put("/expense/:id", (req, res) => {
     const expenseId = Number(req.params.id);
+    const userId = Number(req.body.userId);
     const date = cleanText(req.body.date);
     const category = cleanText(req.body.category);
     const title = cleanText(req.body.title);
@@ -211,10 +216,10 @@ router.put("/expense/:id", (req, res) => {
     const description = cleanText(req.body.description);
     const amount = normalizeAmount(req.body.amount);
 
-    if (!expenseId || !isValidDate(date) || !category || !title || !amount) {
+    if (!expenseId || !userId || !isValidDate(date) || !category || !title || !amount) {
         return res.status(400).json({
             success: false,
-            message: "Valid expense id, date, category, title, and amount are required"
+            message: "Valid expense id, user id, date, category, title, and amount are required"
         });
     }
 
@@ -222,9 +227,9 @@ router.put("/expense/:id", (req, res) => {
         `
         UPDATE expense
         SET date = ?, category = ?, title = ?, payment_method = ?, amount = ?, description = ?
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
         `,
-        [date, category, title, paymentMethod, amount, description, expenseId],
+        [date, category, title, paymentMethod, amount, description, expenseId, userId],
         (err, result) => {
             if (err) {
                 console.log("Expense Update Error:", err);
@@ -251,14 +256,15 @@ router.put("/expense/:id", (req, res) => {
 
 router.delete("/expense/:id", (req, res) => {
     const expenseId = Number(req.params.id);
-    if (!expenseId) {
+    const userId = Number(req.query.userId);
+    if (!expenseId || !userId) {
         return res.status(400).json({
             success: false,
-            message: "Valid expense id is required"
+            message: "Valid expense id and user id are required"
         });
     }
 
-    db.query("DELETE FROM expense WHERE id = ?", [expenseId], (err, result) => {
+    db.query("DELETE FROM expense WHERE id = ? AND user_id = ?", [expenseId, userId], (err, result) => {
         if (err) {
             console.log("Expense Delete Error:", err);
             return res.status(500).json({
@@ -283,11 +289,26 @@ router.delete("/expense/:id", (req, res) => {
 
 router.get("/transactions", (req, res) => {
     try {
+        const userId = Number(req.query.userId);
         const type = cleanText(req.query.type);
         const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
 
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
         const incomeFilters = buildTransactionFilters(req.query);
         const expenseFilters = buildTransactionFilters(req.query);
+
+        // Prepend user_id filter
+        incomeFilters.params.unshift(userId);
+        expenseFilters.params.unshift(userId);
+        const incomeWhere = incomeFilters.whereSql ? incomeFilters.whereSql + " AND user_id = ?" : "WHERE user_id = ?";
+        const expenseWhere = expenseFilters.whereSql ? expenseFilters.whereSql + " AND user_id = ?" : "WHERE user_id = ?";
+        // Fix: user_id param should be at end for AND, or alone for WHERE
+        // Let's rebuild properly
+        const incomeUserWhere = incomeFilters.whereSql ? incomeFilters.whereSql.replace("WHERE", "WHERE user_id = ? AND") : "WHERE user_id = ?";
+        const expenseUserWhere = expenseFilters.whereSql ? expenseFilters.whereSql.replace("WHERE", "WHERE user_id = ? AND") : "WHERE user_id = ?";
 
         const shouldFetchIncome = !type || type === "income";
         const shouldFetchExpense = !type || type === "expense";
@@ -306,7 +327,7 @@ router.get("/transactions", (req, res) => {
                     amount,
                     description
                 FROM income
-                ${incomeFilters.whereSql}
+                ${incomeUserWhere}
             `;
             incomeResults = db.prepare(sql).all(incomeFilters.params);
         }
@@ -322,7 +343,7 @@ router.get("/transactions", (req, res) => {
                     amount,
                     description
                 FROM expense
-                ${expenseFilters.whereSql}
+                ${expenseUserWhere}
             `;
             expenseResults = db.prepare(sql).all(expenseFilters.params);
         }

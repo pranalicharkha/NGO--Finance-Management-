@@ -45,70 +45,57 @@ function recentTransactionTitle(item) {
 router.get("/dashboard", (req, res) => {
     try {
         const year = normalizeYear(req.query.year);
+        const userId = Number(req.query.userId);
 
-        // SQLite-compatible queries
-        const incomeTotalRows = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalIncome FROM income").get();
-        const expenseTotalRows = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalExpense FROM expense").get();
-        
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
+        const incomeTotalRow = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalIncome FROM income WHERE user_id = ?").get(userId);
+        const expenseTotalRow = db.prepare("SELECT IFNULL(SUM(amount), 0) AS totalExpense FROM expense WHERE user_id = ?").get(userId);
+
         const incomeMonthlyRows = db.prepare(`
             SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalIncome
             FROM income
-            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            WHERE user_id = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?
             GROUP BY monthNumber
             ORDER BY monthNumber
-        `, [year]).all();
-        
+        `).all(userId, year);
+
         const expenseMonthlyRows = db.prepare(`
             SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalExpense
             FROM expense
-            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            WHERE user_id = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?
             GROUP BY monthNumber
             ORDER BY monthNumber
-        `, [year]).all();
-        
-        // Add month names to the results
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        incomeMonthlyRows.forEach(row => row.month = monthNames[row.monthNumber - 1] || "Unknown");
-        expenseMonthlyRows.forEach(row => row.month = monthNames[row.monthNumber - 1] || "Unknown");
-        
+        `).all(userId, year);
+
         const categoryRows = db.prepare(`
             SELECT category, SUM(amount) AS totalExpense
             FROM expense
+            WHERE user_id = ?
             GROUP BY category
             ORDER BY totalExpense DESC
-        `).all();
-        
+        `).all(userId);
+
         const recentRows = db.prepare(`
             SELECT *
             FROM (
                 SELECT id, date, category, source, NULL AS title, amount, 'income' AS type
                 FROM income
+                WHERE user_id = ?
                 UNION ALL
                 SELECT id, date, category, NULL AS source, title, amount, 'expense' AS type
                 FROM expense
+                WHERE user_id = ?
             ) AS transactions
             ORDER BY date DESC, id DESC
             LIMIT 5
-        `).all();
+        `).all(userId, userId);
 
-        const totalIncome = toNumber(incomeTotalRows.totalIncome);
-        const totalExpense = toNumber(expenseTotalRows.totalExpense);
+        const totalIncome = toNumber(incomeTotalRow?.totalIncome);
+        const totalExpense = toNumber(expenseTotalRow?.totalExpense);
         const monthlySeries = buildMonthlySeries(incomeMonthlyRows, expenseMonthlyRows);
-
-        const monthlyIncome = monthlySeries.map((item) => ({
-            month: item.month,
-            total: item.income
-        }));
-
-        const monthlyExpense = monthlySeries.map((item) => ({
-            month: item.month,
-            total: item.expense
-        }));
-
-        const categoryExpense = categoryRows.map((item) => ({
-            category: item.category,
-            total: toNumber(item.totalExpense)
-        }));
 
         res.json({
             success: true,
@@ -116,9 +103,12 @@ router.get("/dashboard", (req, res) => {
             totalIncome,
             totalExpense,
             balance: totalIncome - totalExpense,
-            monthlyIncome,
-            monthlyExpense,
-            categoryExpense,
+            monthlyIncome: monthlySeries.map((item) => ({ month: item.month, total: item.income })),
+            monthlyExpense: monthlySeries.map((item) => ({ month: item.month, total: item.expense })),
+            categoryExpense: categoryRows.map((item) => ({
+                category: item.category,
+                total: toNumber(item.totalExpense)
+            })),
             recentTransactions: recentRows.map((item) => ({
                 ...item,
                 title: recentTransactionTitle(item),
@@ -143,23 +133,27 @@ router.get("/dashboard", (req, res) => {
 router.get("/monthly-report", (req, res) => {
     try {
         const year = normalizeYear(req.query.year);
+        const userId = Number(req.query.userId);
 
-        // SQLite-compatible queries
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
         const incomeRows = db.prepare(`
             SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalIncome
             FROM income
-            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            WHERE user_id = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?
             GROUP BY monthNumber
             ORDER BY monthNumber
-        `, [year]).all();
-        
+        `).all(userId, year);
+
         const expenseRows = db.prepare(`
             SELECT CAST(strftime('%m', date) AS INTEGER) AS monthNumber, SUM(amount) AS totalExpense
             FROM expense
-            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            WHERE user_id = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?
             GROUP BY monthNumber
             ORDER BY monthNumber
-        `, [year]).all();
+        `).all(userId, year);
 
         const monthlySeries = buildMonthlySeries(incomeRows, expenseRows);
 
@@ -167,14 +161,8 @@ router.get("/monthly-report", (req, res) => {
             success: true,
             year,
             monthlyReport: monthlySeries,
-            income: monthlySeries.map((item) => ({
-                month: item.month,
-                totalIncome: item.income
-            })),
-            expense: monthlySeries.map((item) => ({
-                month: item.month,
-                totalExpense: item.expense
-            })),
+            income: monthlySeries.map((item) => ({ month: item.month, totalIncome: item.income })),
+            expense: monthlySeries.map((item) => ({ month: item.month, totalExpense: item.expense })),
             chartData: {
                 labels: monthlySeries.map((item) => item.month),
                 income: monthlySeries.map((item) => item.income),
@@ -195,14 +183,18 @@ router.get("/category-report", (req, res) => {
     try {
         const year = normalizeYear(req.query.year);
         const month = normalizeMonth(req.query.month);
+        const userId = Number(req.query.userId);
 
-        // SQLite-compatible query
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
         let sql = `
             SELECT category, SUM(amount) AS totalExpense
             FROM expense
-            WHERE CAST(strftime('%Y', date) AS INTEGER) = ?
+            WHERE user_id = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?
         `;
-        const params = [year];
+        const params = [userId, year];
 
         if (month) {
             sql += " AND CAST(strftime('%m', date) AS INTEGER) = ?";
@@ -211,8 +203,7 @@ router.get("/category-report", (req, res) => {
 
         sql += " GROUP BY category ORDER BY totalExpense DESC";
 
-        const rows = db.prepare(sql, params).all();
-
+        const rows = db.prepare(sql).all(...params);
         const categories = rows.map((item) => ({
             category: item.category,
             totalExpense: toNumber(item.totalExpense)

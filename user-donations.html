@@ -23,6 +23,7 @@
     <div class="nav-section-label">Information</div>
     <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
     <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
+    <a href="user-calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
     <div class="nav-section-label">My Account</div>
     <a href="user-donations.html" class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
@@ -131,22 +132,20 @@
 
       <div class="col-12 col-xl-7">
         <div class="chart-card" style="border-left:4px solid var(--gold)">
-          <div style="display:flex;align-items:flex-start;gap:14px">
-            <i class="bi bi-info-circle-fill" style="font-size:1.8rem;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
+          <div class="chart-header">
             <div>
-              <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);font-size:0.95rem">What This Page Shows</div>
-              <p style="color:var(--text-secondary);font-size:0.87rem;margin:0 0 12px 0;line-height:1.75">
-                The rows below are individual income records from the backend database. If you see duplicate entries, that means duplicate rows exist in MySQL, not in the page design.
-              </p>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific source</span>
-                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific category</span>
-                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Specific note</span>
-                <span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.76rem;">Editable</span>
-              </div>
-              <div id="donationFormMessage" style="display:none;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
+              <div class="chart-title">Donation Flow</div>
+              <div class="chart-subtitle">A live view of donation amounts grouped by date.</div>
             </div>
+            <span class="chart-badge">Live</span>
           </div>
+          <div style="height:300px;position:relative;">
+            <canvas id="donationTrendChart"></canvas>
+          </div>
+          <div id="donationTrendChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">
+            No donation data available yet. Add your first donation entry to see the graph.
+          </div>
+          <div id="donationFormMessage" style="display:none;margin-top:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
         </div>
       </div>
     </div>
@@ -188,7 +187,8 @@
   </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260418c"></script>
+<script src="js/script.js?v=20260421a"></script>
 </body>
 </html>

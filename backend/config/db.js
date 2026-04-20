@@ -4,6 +4,16 @@ const path = require('path');
 const dbPath = path.join(__dirname, '..', '..', 'database', 'finance_management.db');
 const db = new Database(dbPath);
 
+function columnExists(tableName, columnName) {
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    return columns.some((column) => column.name === columnName);
+}
+
+function tableExists(tableName) {
+    const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
+    return Boolean(row);
+}
+
 // Initialize database schema
 const initSchema = () => {
     // Admins Table
@@ -21,7 +31,11 @@ const initSchema = () => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT UNIQUE,
-            password TEXT
+            password TEXT,
+            phone TEXT,
+            pan_number TEXT,
+            address TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
@@ -29,6 +43,7 @@ const initSchema = () => {
     db.exec(`
         CREATE TABLE IF NOT EXISTS income (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             date TEXT NOT NULL,
             category TEXT NOT NULL,
             source TEXT NOT NULL,
@@ -43,6 +58,7 @@ const initSchema = () => {
     db.exec(`
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             date TEXT NOT NULL,
             category TEXT NOT NULL,
             title TEXT NOT NULL,
@@ -53,10 +69,24 @@ const initSchema = () => {
         )
     `);
 
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS ngos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            ngo_name TEXT NOT NULL,
+            registration_no TEXT,
+            location TEXT,
+            contact_email TEXT,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // Projects Table
     db.exec(`
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ngo_id INTEGER,
             project_name TEXT NOT NULL,
             project_code TEXT UNIQUE,
             focus_area TEXT,
@@ -68,6 +98,47 @@ const initSchema = () => {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    if (!columnExists("projects", "ngo_id")) {
+        db.exec("ALTER TABLE projects ADD COLUMN ngo_id INTEGER");
+    }
+
+    if (!columnExists("projects", "description")) {
+        db.exec("ALTER TABLE projects ADD COLUMN description TEXT");
+    }
+
+    if (!columnExists("users", "phone")) {
+        db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+    }
+
+    if (!columnExists("users", "pan_number")) {
+        db.exec("ALTER TABLE users ADD COLUMN pan_number TEXT");
+    }
+
+    if (!columnExists("users", "address")) {
+        db.exec("ALTER TABLE users ADD COLUMN address TEXT");
+    }
+
+    if (!columnExists("users", "created_at")) {
+        db.exec("ALTER TABLE users ADD COLUMN created_at TEXT");
+        db.exec("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
+    }
+
+    if (!columnExists("income", "user_id")) {
+        db.exec("ALTER TABLE income ADD COLUMN user_id INTEGER");
+    }
+
+    if (!columnExists("expense", "user_id")) {
+        db.exec("ALTER TABLE expense ADD COLUMN user_id INTEGER");
+    }
+
+    if (!columnExists("ngos", "user_id")) {
+        db.exec("ALTER TABLE ngos ADD COLUMN user_id INTEGER");
+    }
+
+    if (!tableExists("ngos")) {
+        throw new Error("Failed to initialize ngos table");
+    }
 
     // Insert default admins if not exists
     const adminCount = db.prepare('SELECT COUNT(*) as count FROM admins').get();
@@ -86,15 +157,6 @@ const initSchema = () => {
         console.log('Default users inserted');
     }
 
-    // Insert default projects if not exists
-    const projectCount = db.prepare('SELECT COUNT(*) as count FROM projects').get();
-    if (projectCount.count === 0) {
-        db.prepare('INSERT INTO projects (project_name, project_code, focus_area, description, start_date, end_date, budget, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-            .run('Women Empowerment Drive', 'NGO-PROJ-001', 'Women Welfare', 'Livelihood and leadership support for women self-help groups.', '2026-04-01', '2026-12-31', 500000.00, 'active');
-        db.prepare('INSERT INTO projects (project_name, project_code, focus_area, description, start_date, end_date, budget, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-            .run('Child Education Support', 'NGO-PROJ-002', 'Education', 'School support, books, and mentoring for children in underserved communities.', '2026-04-01', '2027-03-31', 750000.00, 'active');
-        console.log('Default projects inserted');
-    }
 };
 
 initSchema();

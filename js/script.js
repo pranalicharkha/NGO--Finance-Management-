@@ -6,6 +6,7 @@ let reportTransactionsCache = [];
 let transactionModalInstance;
 let ngoProjectCache = [];
 let userPieChart;
+let donationTrendChart;
 
 async function apiFetchJson(url, options = {}) {
     const response = await fetch(url, {
@@ -42,8 +43,14 @@ function normalizeDateValue(value) {
     return `${year}-${month}-${day}`;
 }
 
+function getUserId() {
+    const user = loadUserSession();
+    return user ? user.id : 0;
+}
+
 async function loadTransactionsFromApi() {
-    const data = await apiFetchJson("/user/transactions");
+    const userId = getUserId();
+    const data = await apiFetchJson(`/user/transactions?userId=${userId}`);
     return (data.transactions || []).map((item) => ({
         ...item,
         date: normalizeDateValue(item.date)
@@ -132,7 +139,7 @@ function loadUserSession() {
 
 function applyUserSession() {
     const user = loadUserSession();
-    const userPages = ["user-dashboard", "user-profile", "user-donations", "user-projects", "user-transparency"];
+    const userPages = ["user-dashboard", "user-profile", "user-donations", "user-projects", "user-transparency", "user-calendar"];
     const page = document.body.dataset.page;
 
     if (!user) {
@@ -403,6 +410,7 @@ async function initIncomePage() {
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const payload = {
+            userId: getUserId(),
             date: document.getElementById("incDate").value,
             category: document.getElementById("incCategory").value,
             source: document.getElementById("incSource").value.trim(),
@@ -434,6 +442,7 @@ async function initExpensePage() {
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const payload = {
+            userId: getUserId(),
             date: document.getElementById("expDate").value,
             category: document.getElementById("expCategory").value,
             title: document.getElementById("expTitle").value.trim(),
@@ -652,7 +661,7 @@ async function initReportsPage() {
     const deleteTransaction = async (transaction) => {
         if (!window.confirm(`Delete this ${transaction.type} record?`)) return;
         try {
-            await apiFetchJson(`/user/${transaction.type}/${transaction.id}`, { method: "DELETE" });
+            await apiFetchJson(`/user/${transaction.type}/${transaction.id}?userId=${getUserId()}`, { method: "DELETE" });
             await loadReports();
         } catch (error) {
             console.error("Delete error:", error);
@@ -735,7 +744,7 @@ async function initReportsPage() {
         else payload.title = document.getElementById("editName").value.trim();
 
         try {
-            await apiFetchJson(`/user/${type}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            await apiFetchJson(`/user/${type}/${id}?userId=${getUserId()}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({...payload, userId: getUserId()}) });
             transactionModalInstance?.hide();
             await loadReports();
         } catch (error) {
@@ -775,10 +784,10 @@ async function initUserDashboardPage() {
 
     try {
         const [dashboardData, transactionData, categoryData, ngoData] = await Promise.all([
-            apiFetchJson("/user/dashboard"),
-            apiFetchJson("/user/transactions?type=income"),
-            apiFetchJson("/user/category-report"),
-            apiFetchJson("/user/ngos")
+            apiFetchJson(`/user/dashboard?userId=${getUserId()}`),
+            apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`),
+            apiFetchJson(`/user/category-report?userId=${getUserId()}`),
+            apiFetchJson(`/user/ngos?userId=${getUserId()}`)
         ]);
 
         const incomeTransactions = transactionData.transactions || [];
@@ -868,9 +877,9 @@ async function initUserDashboardPage() {
 async function initUserTransparencyPage() {
     try {
         const [dashboardData, ngoData, txData] = await Promise.all([
-            apiFetchJson("/user/dashboard"),
-            apiFetchJson("/user/ngos"),
-            apiFetchJson("/user/transactions")
+            apiFetchJson(`/user/dashboard?userId=${getUserId()}`),
+            apiFetchJson(`/user/ngos?userId=${getUserId()}`),
+            apiFetchJson(`/user/transactions?userId=${getUserId()}`)
         ]);
 
         const incomeCount = (txData.transactions || []).filter((item) => item.type === "income").length;
@@ -898,6 +907,8 @@ async function initUserDonationsPage() {
     const exportButton = document.getElementById("donationExportBtn");
     const donationForm = document.getElementById("donationForm");
     const messageBox = document.getElementById("donationFormMessage");
+    const donationChartCanvas = document.getElementById("donationTrendChart");
+    const donationChartEmpty = document.getElementById("donationTrendChartEmpty");
     if (!tbody) return;
 
     const donationFields = {
@@ -971,8 +982,64 @@ async function initUserDonationsPage() {
         `).join("");
     };
 
+    const renderDonationChart = (donations) => {
+        if (!donationChartCanvas || typeof Chart === "undefined") return;
+
+        if (!donations.length) {
+            destroyChart(donationTrendChart);
+            if (donationChartEmpty) donationChartEmpty.style.display = "block";
+            return;
+        }
+
+        const grouped = donations
+            .slice()
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .reduce((map, item) => {
+                const key = normalizeDateValue(item.date);
+                map[key] = (map[key] || 0) + Number(item.amount || 0);
+                return map;
+            }, {});
+
+        const labels = Object.keys(grouped);
+        const values = labels.map((label) => grouped[label]);
+
+        if (donationChartEmpty) donationChartEmpty.style.display = "none";
+        destroyChart(donationTrendChart);
+        donationTrendChart = new Chart(donationChartCanvas, {
+            type: "line",
+            data: {
+                labels: labels.map((label) => formatDate(label)),
+                datasets: [{
+                    label: "Donation amount",
+                    data: values,
+                    borderColor: "#0f6e4d",
+                    backgroundColor: "rgba(15,110,77,0.14)",
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 4,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => formatCurrency(value)
+                        }
+                    }
+                }
+            }
+        });
+    };
+
     const loadDonationData = async () => {
-        const data = await apiFetchJson("/user/transactions?type=income");
+        const data = await apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`);
         const donations = data.transactions || [];
         donationCache = donations;
         const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -982,6 +1049,7 @@ async function initUserDonationsPage() {
         setText("donationCount", String(donations.length));
         setText("donationAverage", formatCurrency(average));
         renderDonationRows(donations);
+        renderDonationChart(donations);
         return donations;
     };
 
@@ -1001,7 +1069,7 @@ async function initUserDonationsPage() {
         if (actionButton.dataset.action === "delete-income") {
             if (!window.confirm(`Delete income record #${item.id}?`)) return;
             try {
-                await apiFetchJson(`/user/income/${item.id}`, { method: "DELETE" });
+                await apiFetchJson(`/user/income/${item.id}?userId=${getUserId()}`, { method: "DELETE" });
                 setMessage(`Income record #${item.id} deleted successfully.`, "success");
                 await loadDonationData();
                 resetDonationForm();
@@ -1015,6 +1083,7 @@ async function initUserDonationsPage() {
         event.preventDefault();
 
         const payload = {
+            userId: getUserId(),
             date: donationFields.date.value,
             category: donationFields.category.value,
             source: donationFields.source.value.trim(),
@@ -1025,7 +1094,7 @@ async function initUserDonationsPage() {
 
         try {
             if (donationFields.id.value) {
-                await apiFetchJson(`/user/income/${donationFields.id.value}`, {
+                await apiFetchJson(`/user/income/${donationFields.id.value}?userId=${getUserId()}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
@@ -1077,14 +1146,199 @@ async function initUserDonationsPage() {
     }
 }
 
+async function initUserCalendarPage() {
+    const grid = document.getElementById("calGrid");
+    const detailBox = document.getElementById("selectedDayRecords");
+    const detailTitle = document.querySelector(".cal-detail-title");
+    if (!grid) return;
+
+    let currentDate = new Date();
+    let selectedDate = null;
+    let donations = [];
+    let projects = [];
+
+    try {
+        const [txData, projectData] = await Promise.all([
+            apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`),
+            apiFetchJson("/user/projects")
+        ]);
+        donations = txData.transactions || [];
+        projects = projectData.projects || [];
+    } catch (error) {
+        console.error("User calendar data error:", error);
+        if (detailBox) {
+            detailBox.innerHTML = `<div class="cal-detail-empty">${escapeHtml(error.message || "Unable to load donation calendar data.")}</div>`;
+        }
+    }
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    const updateStats = (year, month) => {
+        const monthDonations = donations.filter((item) => {
+            const date = new Date(`${normalizeDateValue(item.date)}T00:00:00`);
+            return date.getFullYear() === year && date.getMonth() === month;
+        });
+
+        const monthTotal = monthDonations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        setText("calMonthInc", formatCurrency(monthTotal));
+        setText("calTotalDonations", String(monthDonations.length));
+        setText("calProjectsSupported", String(projects.length));
+    };
+
+    const showDayDetails = (date) => {
+        const dateStr = normalizeDateValue(date);
+        const dayDonations = donations.filter((item) => normalizeDateValue(item.date) === dateStr);
+
+        if (detailTitle) {
+            detailTitle.innerHTML = `<i class="bi bi-calendar3"></i> ${new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+            })}`;
+        }
+
+        if (!detailBox) return;
+
+        if (!dayDonations.length) {
+            detailBox.innerHTML = '<div class="cal-detail-empty">No donations recorded on this day.</div>';
+            return;
+        }
+
+        detailBox.innerHTML = dayDonations.map((donation) => `
+            <div class="cal-txn-row">
+              <div class="cal-txn-icon inc">
+                <i class="bi bi-heart-fill"></i>
+              </div>
+              <div class="cal-txn-info">
+                <div class="cal-txn-name">${escapeHtml(donation.source || "Donation")}</div>
+                <div class="cal-txn-cat">${escapeHtml(donation.category || "Donation")} ${donation.payment_method ? `• ${escapeHtml(formatPaymentMethod(donation.payment_method))}` : ""}</div>
+              </div>
+              <div class="cal-txn-amt p">${escapeHtml(formatCurrency(donation.amount))}</div>
+            </div>
+        `).join("");
+    };
+
+    const createDayCell = (day, isOtherMonth, dateObj) => {
+        const cell = document.createElement("div");
+        cell.className = "cal-cell";
+        if (isOtherMonth) cell.classList.add("other-month");
+
+        const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+        const dayDonations = donations.filter((item) => normalizeDateValue(item.date) === dateStr);
+        const todayStr = normalizeDateValue(new Date());
+
+        if (dateStr === todayStr) cell.classList.add("today");
+        if (selectedDate && dateStr === normalizeDateValue(selectedDate)) cell.classList.add("selected");
+
+        const dateNum = document.createElement("div");
+        dateNum.className = "cal-date";
+        dateNum.textContent = String(day);
+        cell.appendChild(dateNum);
+
+        if (dayDonations.length) {
+            const dotWrap = document.createElement("div");
+            dotWrap.className = "cal-dot-wrap";
+
+            const dot = document.createElement("div");
+            dot.className = "cal-dot income-dot";
+            dotWrap.appendChild(dot);
+
+            const count = document.createElement("small");
+            count.textContent = String(dayDonations.length);
+            count.style.color = "var(--primary)";
+            count.style.fontWeight = "700";
+            dotWrap.appendChild(count);
+
+            cell.appendChild(dotWrap);
+        }
+
+        cell.addEventListener("click", () => {
+            selectedDate = dateObj;
+            renderCalendar();
+            showDayDetails(dateStr);
+        });
+
+        return cell;
+    };
+
+    function renderCalendar() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+        setText("calMonthLabel", `${monthNames[month]} ${year}`);
+        grid.innerHTML = "";
+
+        for (let i = firstDay - 1; i >= 0; i -= 1) {
+            const day = daysInPrevMonth - i;
+            grid.appendChild(createDayCell(day, true, new Date(year, month - 1, day)));
+        }
+
+        for (let day = 1; day <= daysInMonth; day += 1) {
+            grid.appendChild(createDayCell(day, false, new Date(year, month, day)));
+        }
+
+        const remainingCells = 42 - grid.children.length;
+        for (let day = 1; day <= remainingCells; day += 1) {
+            grid.appendChild(createDayCell(day, true, new Date(year, month + 1, day)));
+        }
+
+        updateStats(year, month);
+    }
+
+    renderCalendar();
+    document.getElementById("calPrev")?.addEventListener("click", () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar();
+    });
+    document.getElementById("calNext")?.addEventListener("click", () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar();
+    });
+}
+
 async function initUserProfilePage() {
     const user = loadUserSession();
     if (!user) return;
 
     setText("profileEmailStatus", user.email ? "Email available in session" : "Email not available");
 
+    const profileForm = document.getElementById("profileDetailsForm");
+    const profileResetBtn = document.getElementById("profileResetBtn");
+    const profileMessage = document.getElementById("profileFormMessage");
     const changePasswordForm = document.getElementById("changePasswordForm");
     const changePasswordMessage = document.getElementById("changePasswordMessage");
+    let profileSnapshot = null;
+
+    const profileFields = {
+        name: document.getElementById("profileName"),
+        email: document.getElementById("profileEmail"),
+        phone: document.getElementById("profilePhone"),
+        pan: document.getElementById("profilePan"),
+        address: document.getElementById("profileAddress"),
+        memberSince: document.getElementById("profileMemberSince")
+    };
+
+    const setProfileMessage = (text, tone = "info") => {
+        if (!profileMessage) return;
+        if (!text) {
+            profileMessage.style.display = "none";
+            profileMessage.textContent = "";
+            return;
+        }
+
+        const styles = {
+            info: "background:rgba(26,86,219,0.08);color:#1a56db;border:1px solid rgba(26,86,219,0.18);",
+            success: "background:rgba(15,110,77,0.08);color:var(--primary);border:1px solid rgba(15,110,77,0.18);",
+            error: "background:rgba(220,38,38,0.08);color:var(--danger);border:1px solid rgba(220,38,38,0.18);"
+        };
+
+        profileMessage.style.cssText = `display:block;margin-top:14px;padding:12px 14px;border-radius:12px;font-size:0.88rem;${styles[tone] || styles.info}`;
+        profileMessage.textContent = text;
+    };
 
     const setPasswordMessage = (text, tone = "info") => {
         if (!changePasswordMessage) return;
@@ -1104,8 +1358,45 @@ async function initUserProfilePage() {
         changePasswordMessage.textContent = text;
     };
 
+    const populateProfileForm = (profile) => {
+        profileSnapshot = profile;
+        if (profileFields.name) profileFields.name.value = profile.name || "";
+        if (profileFields.email) profileFields.email.value = profile.email || "";
+        if (profileFields.phone) profileFields.phone.value = profile.phone || "";
+        if (profileFields.pan) profileFields.pan.value = profile.pan_number || "";
+        if (profileFields.address) profileFields.address.value = profile.address || "";
+        if (profileFields.memberSince) {
+            profileFields.memberSince.value = profile.created_at
+                ? formatDate(String(profile.created_at).split("T")[0].split(" ")[0])
+                : "Current session";
+        }
+    };
+
+    const syncSessionUser = (profile) => {
+        const updatedUser = {
+            ...user,
+            id: profile.id || user.id,
+            name: profile.name || user.name,
+            email: profile.email || user.email
+        };
+        sessionStorage.setItem("nidigoUser", JSON.stringify(updatedUser));
+        applyUserSession();
+    };
+
     try {
-        const txData = await apiFetchJson("/user/transactions?type=income");
+        const profileResponse = await apiFetchJson(`/user/profile/${user.id}`);
+        if (profileResponse.user) {
+            populateProfileForm(profileResponse.user);
+            syncSessionUser(profileResponse.user);
+        }
+    } catch (error) {
+        console.error("Profile load error:", error);
+        populateProfileForm(user);
+        setProfileMessage(error.message || "Unable to load full profile details right now.", "error");
+    }
+
+    try {
+        const txData = await apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`);
         const donations = txData.transactions || [];
         const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
@@ -1143,6 +1434,50 @@ async function initUserProfilePage() {
         console.error("Profile page error:", error);
         setText("profileStatusMeta", "Unable to load donation history right now");
     }
+
+    profileForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const payload = {
+            name: profileFields.name?.value.trim(),
+            email: profileFields.email?.value.trim(),
+            phone: profileFields.phone?.value.trim(),
+            pan_number: profileFields.pan?.value.trim(),
+            address: profileFields.address?.value.trim()
+        };
+
+        if (!payload.name || !payload.email) {
+            setProfileMessage("Name and email are required.", "error");
+            return;
+        }
+
+        try {
+            const result = await apiFetchJson(`/user/profile/${user.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            populateProfileForm({
+                ...profileSnapshot,
+                ...result.user,
+                created_at: profileSnapshot?.created_at || null
+            });
+            syncSessionUser(result.user || payload);
+            setProfileMessage(result.message || "Profile updated successfully.", "success");
+        } catch (error) {
+            setProfileMessage(error.message || "Failed to update profile.", "error");
+        }
+    });
+
+    profileResetBtn?.addEventListener("click", () => {
+        if (profileSnapshot) {
+            populateProfileForm(profileSnapshot);
+        } else {
+            populateProfileForm(user);
+        }
+        setProfileMessage("");
+    });
 
     changePasswordForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -1340,7 +1675,7 @@ async function initUserProjectsPage() {
     };
 
     const fetchData = async () => {
-        const data = await apiFetchJson("/user/ngos");
+        const data = await apiFetchJson(`/user/ngos?userId=${getUserId()}`);
         ngoProjectCache = data.ngos || [];
         populateNgoOptions(ngoProjectCache);
         renderNgoProjectList(ngoProjectCache);
@@ -1387,7 +1722,7 @@ async function initUserProjectsPage() {
         if (action === "delete-ngo") {
             if (!window.confirm("Delete this NGO? This works only if all projects under it are removed first.")) return;
             try {
-                await apiFetchJson(`/user/ngos/${ngoId}`, { method: "DELETE" });
+                await apiFetchJson(`/user/ngos/${ngoId}?userId=${getUserId()}`, { method: "DELETE" });
                 setMessage("NGO deleted successfully.", "success");
                 await fetchData();
                 resetNgoForm();
@@ -1417,7 +1752,7 @@ async function initUserProjectsPage() {
         if (action === "delete-project") {
             if (!window.confirm("Delete this project?")) return;
             try {
-                await apiFetchJson(`/user/projects/${projectId}`, { method: "DELETE" });
+                await apiFetchJson(`/user/projects/${projectId}?userId=${getUserId()}`, { method: "DELETE" });
                 setMessage("Project deleted successfully.", "success");
                 await fetchData();
                 resetProjectForm();
@@ -1430,6 +1765,7 @@ async function initUserProjectsPage() {
     ngoForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const payload = {
+            userId: getUserId(),
             ngo_name: ngoFields.name.value.trim(),
             registration_no: ngoFields.registration.value.trim(),
             contact_email: ngoFields.email.value.trim(),
@@ -1658,6 +1994,7 @@ document.addEventListener("DOMContentLoaded", () => {
         case "users": initUsersPage(); break;
         case "user-dashboard": initUserDashboardPage(); break;
         case "user-donations": initUserDonationsPage(); break;
+        case "user-calendar": initUserCalendarPage(); break;
         case "user-projects": initUserProjectsPage(); break;
         case "user-transparency": initUserTransparencyPage(); break;
         case "user-profile": initUserProfilePage(); break;

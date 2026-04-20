@@ -25,11 +25,14 @@ function normalizeStatus(value) {
     return PROJECT_STATUSES.has(status) ? status : null;
 }
 
-router.get("/ngos", async (req, res) => {
+router.get("/ngos", (req, res) => {
     try {
-        const promiseDb = db.promise();
-        const [rows] = await promiseDb.query(
-            `
+        const userId = Number(req.query.userId);
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
+        const rows = db.prepare(`
             SELECT
                 n.id AS ngo_id,
                 n.ngo_name,
@@ -49,9 +52,9 @@ router.get("/ngos", async (req, res) => {
                 p.status
             FROM ngos n
             LEFT JOIN projects p ON p.ngo_id = n.id
+            WHERE n.user_id = ?
             ORDER BY n.ngo_name ASC, p.created_at DESC, p.id DESC
-            `
-        );
+        `).all(userId);
 
         const ngoMap = new Map();
 
@@ -114,31 +117,29 @@ router.get("/ngos", async (req, res) => {
 });
 
 router.post("/ngos", (req, res) => {
+    const userId = Number(req.body.userId);
     const ngoName = cleanText(req.body.ngo_name);
     const registrationNo = cleanText(req.body.registration_no);
     const location = cleanText(req.body.location);
     const contactEmail = cleanText(req.body.contact_email);
     const description = cleanText(req.body.description);
 
-    if (!ngoName) {
+    if (!userId || !ngoName) {
         return res.status(400).json({
             success: false,
-            message: "NGO name is required"
+            message: "User ID and NGO name are required"
         });
     }
 
     db.query(
-        `
-        INSERT INTO ngos (ngo_name, registration_no, location, contact_email, description)
-        VALUES (?, ?, ?, ?, ?)
-        `,
-        [ngoName, registrationNo, location, contactEmail, description],
+        "INSERT INTO ngos (user_id, ngo_name, registration_no, location, contact_email, description) VALUES (?, ?, ?, ?, ?, ?)",
+        [userId, ngoName, registrationNo, location, contactEmail, description],
         (err, result) => {
             if (err) {
                 console.log("NGO Insert Error:", err);
                 return res.status(500).json({
                     success: false,
-                    message: err.code === "ER_DUP_ENTRY" ? "Registration number already exists" : "Failed to add NGO"
+                    message: "Failed to add NGO"
                 });
             }
 
@@ -153,32 +154,29 @@ router.post("/ngos", (req, res) => {
 
 router.put("/ngos/:id", (req, res) => {
     const ngoId = Number(req.params.id);
+    const userId = Number(req.body.userId);
     const ngoName = cleanText(req.body.ngo_name);
     const registrationNo = cleanText(req.body.registration_no);
     const location = cleanText(req.body.location);
     const contactEmail = cleanText(req.body.contact_email);
     const description = cleanText(req.body.description);
 
-    if (!ngoId || !ngoName) {
+    if (!ngoId || !userId || !ngoName) {
         return res.status(400).json({
             success: false,
-            message: "Valid NGO id and NGO name are required"
+            message: "Valid NGO id, user id, and NGO name are required"
         });
     }
 
     db.query(
-        `
-        UPDATE ngos
-        SET ngo_name = ?, registration_no = ?, location = ?, contact_email = ?, description = ?
-        WHERE id = ?
-        `,
-        [ngoName, registrationNo, location, contactEmail, description, ngoId],
+        "UPDATE ngos SET ngo_name = ?, registration_no = ?, location = ?, contact_email = ?, description = ? WHERE id = ? AND user_id = ?",
+        [ngoName, registrationNo, location, contactEmail, description, ngoId, userId],
         (err, result) => {
             if (err) {
                 console.log("NGO Update Error:", err);
                 return res.status(500).json({
                     success: false,
-                    message: err.code === "ER_DUP_ENTRY" ? "Registration number already exists" : "Failed to update NGO"
+                    message: "Failed to update NGO"
                 });
             }
 
@@ -197,26 +195,26 @@ router.put("/ngos/:id", (req, res) => {
     );
 });
 
-router.delete("/ngos/:id", async (req, res) => {
+router.delete("/ngos/:id", (req, res) => {
     try {
         const ngoId = Number(req.params.id);
-        if (!ngoId) {
+        const userId = Number(req.query.userId);
+        if (!ngoId || !userId) {
             return res.status(400).json({
                 success: false,
-                message: "Valid NGO id is required"
+                message: "Valid NGO id and user id are required"
             });
         }
 
-        const promiseDb = db.promise();
-        const [projectRows] = await promiseDb.query("SELECT COUNT(*) AS projectCount FROM projects WHERE ngo_id = ?", [ngoId]);
-        if (Number(projectRows[0].projectCount || 0) > 0) {
+        const projectRow = db.prepare("SELECT COUNT(*) AS projectCount FROM projects WHERE ngo_id = ?").get(ngoId);
+        if (Number(projectRow?.projectCount || 0) > 0) {
             return res.status(409).json({
                 success: false,
                 message: "Delete the NGO's projects first, then remove the NGO"
             });
         }
 
-        const [result] = await promiseDb.query("DELETE FROM ngos WHERE id = ?", [ngoId]);
+        const result = db.query("DELETE FROM ngos WHERE id = ? AND user_id = ?", [ngoId, userId]);
         if (!result.affectedRows) {
             return res.status(404).json({
                 success: false,
@@ -237,15 +235,13 @@ router.delete("/ngos/:id", async (req, res) => {
     }
 });
 
-router.get("/projects", async (req, res) => {
+router.get("/projects", (req, res) => {
     try {
-        const promiseDb = db.promise();
         const ngoId = Number(req.query.ngoId);
         const whereSql = ngoId ? "WHERE p.ngo_id = ?" : "";
         const params = ngoId ? [ngoId] : [];
 
-        const [projects] = await promiseDb.query(
-            `
+        const projects = db.prepare(`
             SELECT
                 p.id,
                 p.ngo_id,
@@ -262,9 +258,7 @@ router.get("/projects", async (req, res) => {
             INNER JOIN ngos n ON n.id = p.ngo_id
             ${whereSql}
             ORDER BY p.created_at DESC, p.id DESC
-            `,
-            params
-        );
+        `).all(...params);
 
         res.json({
             success: true,
@@ -301,17 +295,14 @@ router.post("/projects", (req, res) => {
     }
 
     db.query(
-        `
-        INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
+        "INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status],
         (err, result) => {
             if (err) {
                 console.log("Project Insert Error:", err);
                 return res.status(500).json({
                     success: false,
-                    message: err.code === "ER_DUP_ENTRY" ? "Project code already exists" : "Failed to add project"
+                    message: "Failed to add project"
                 });
             }
 
@@ -344,18 +335,14 @@ router.put("/projects/:id", (req, res) => {
     }
 
     db.query(
-        `
-        UPDATE projects
-        SET ngo_id = ?, project_name = ?, project_code = ?, focus_area = ?, description = ?, start_date = ?, end_date = ?, budget = ?, status = ?
-        WHERE id = ?
-        `,
+        "UPDATE projects SET ngo_id = ?, project_name = ?, project_code = ?, focus_area = ?, description = ?, start_date = ?, end_date = ?, budget = ?, status = ? WHERE id = ?",
         [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status, projectId],
         (err, result) => {
             if (err) {
                 console.log("Project Update Error:", err);
                 return res.status(500).json({
                     success: false,
-                    message: err.code === "ER_DUP_ENTRY" ? "Project code already exists" : "Failed to update project"
+                    message: "Failed to update project"
                 });
             }
 
