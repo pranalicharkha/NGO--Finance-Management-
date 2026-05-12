@@ -2589,11 +2589,12 @@ document.addEventListener("DOMContentLoaded", () => {
         case "calendar": initCalendarPage(); break;
         case "reports": initReportsPage(); break;
         case "users": initUsersPage(); break;
+        case "projects": initProjectsPage(); break;
         case "user-dashboard": initUserDashboardPage(); break;
+        case "user-projects": initUserProjectsPage(); break;
         case "user-donations": initUserDonationsPage(); break;
         case "user-expenses": initUserExpensesPage(); break;
         case "user-calendar": initUserCalendarPage(); break;
-        case "user-projects": initUserProjectsPage(); break;
         case "user-transparency": initUserTransparencyPage(); break;
         case "user-profile": initUserProfilePage(); break;
         case "user-login": initUserLoginPage(); break;
@@ -2675,3 +2676,556 @@ window.showCalendarForm = function(type, dateStr) {
         }
     });
 };
+
+// =======================
+// Project Management Functions
+// =======================
+async function initProjectsPage() {
+    const container = document.getElementById("projectsContainer");
+    const projectForm = document.getElementById("projectForm");
+    const projectModal = document.getElementById("projectModal");
+    const projectIdInput = document.getElementById("projectId");
+    const projectNameInput = document.getElementById("projectName");
+    const projectCategoryInput = document.getElementById("projectCategory");
+    const projectDescriptionInput = document.getElementById("projectDescription");
+    const projectTargetAmountInput = document.getElementById("projectTargetAmount");
+    const projectStartDateInput = document.getElementById("projectStartDate");
+    const projectEndDateInput = document.getElementById("projectEndDate");
+    const projectStatusInput = document.getElementById("projectStatus");
+    const projectImageUrlInput = document.getElementById("projectImageUrl");
+    const projectLocationInput = document.getElementById("projectLocation");
+    const projectBeneficiariesInput = document.getElementById("projectBeneficiaries");
+    const errorBox = document.getElementById("projectFormError");
+    const errorBoxText = document.getElementById("projectFormErrorText");
+    const modalLabel = document.getElementById("projectModalLabel");
+    const donationsModal = document.getElementById("donationsModal");
+    const donationsTableBody = document.getElementById("donationsTableBody");
+    const donationsProjectNameLabel = document.getElementById("donationsProjectName");
+
+    // Statistics elements
+    const totalProjectsEl = document.getElementById("totalProjects");
+    const activeProjectsEl = document.getElementById("activeProjects");
+    const completedProjectsEl = document.getElementById("completedProjects");
+    const totalDonationsEl = document.getElementById("totalDonations");
+
+    if (projectModal && window.bootstrap) {
+        projectModalInstance = new bootstrap.Modal(projectModal);
+    }
+    if (donationsModal && window.bootstrap) {
+        donationsModalInstance = new bootstrap.Modal(donationsModal);
+    }
+
+    window.openProjectModal = () => {
+        projectIdInput.value = "";
+        projectNameInput.value = "";
+        projectCategoryInput.value = "";
+        projectDescriptionInput.value = "";
+        projectTargetAmountInput.value = "";
+        projectStartDateInput.value = "";
+        projectEndDateInput.value = "";
+        projectStatusInput.value = "active";
+        projectImageUrlInput.value = "";
+        projectLocationInput.value = "";
+        projectBeneficiariesInput.value = "";
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+        modalLabel.textContent = "Add New Project";
+        
+        if (projectModalInstance) {
+            projectModalInstance.show();
+        }
+    };
+
+    window.openEditProjectModal = (project) => {
+        projectIdInput.value = project.id;
+        projectNameInput.value = project.name;
+        projectCategoryInput.value = project.category;
+        projectDescriptionInput.value = project.description;
+        projectTargetAmountInput.value = project.target_amount;
+        projectStartDateInput.value = project.start_date;
+        projectEndDateInput.value = project.end_date;
+        projectStatusInput.value = project.status;
+        projectImageUrlInput.value = project.image_url || "";
+        projectLocationInput.value = project.location || "";
+        projectBeneficiariesInput.value = project.beneficiaries_count || 0;
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+        modalLabel.textContent = "Edit Project";
+        
+        if (projectModalInstance) {
+            projectModalInstance.show();
+        }
+    };
+
+    window.deleteProject = async (id) => {
+        if (!confirm("Are you sure you want to delete this project? This will also delete all associated donations.")) return;
+        try {
+            await apiFetchJson(`/admin/projects/${id}`, { method: "DELETE" });
+            fetchProjects();
+            fetchStats();
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert(error.message || "Failed to delete project");
+        }
+    };
+
+    window.viewProjectDonations = async (id, projectName) => {
+        try {
+            const data = await apiFetchJson(`/admin/projects/${id}/donations`);
+            const donations = data.donations || [];
+            
+            donationsProjectNameLabel.textContent = `Donations for: ${projectName}`;
+            
+            if (donations.length === 0) {
+                donationsTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No donations found</td></tr>';
+            } else {
+                donationsTableBody.innerHTML = donations.map(d => `
+                    <tr>
+                        <td>${formatDate(d.donation_date)}</td>
+                        <td>${d.anonymous ? 'Anonymous' : (d.donor_name || (d.user_name || '-'))}</td>
+                        <td>${d.anonymous ? '-' : (d.donor_email || (d.user_email || '-'))}</td>
+                        <td style="color: var(--primary); font-weight: 600;">${formatCurrency(d.amount)}</td>
+                        <td>${d.payment_method || '-'}</td>
+                        <td>
+                            <span class="badge ${d.anonymous ? 'bg-warning' : 'bg-success'}">
+                                ${d.anonymous ? 'Yes' : 'No'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            
+            if (donationsModalInstance) {
+                donationsModalInstance.show();
+            }
+            
+        } catch (error) {
+            console.error("Error fetching donations:", error);
+            alert("Failed to load donations");
+        }
+    };
+
+    const fetchProjects = async () => {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-folder2" style="font-size: 3rem; color: var(--text-muted);"></i>
+                <p class="mt-3 text-muted">Loading projects...</p>
+            </div>
+        `;
+        
+        try {
+            const data = await apiFetchJson("/admin/projects");
+            const projects = data.projects || [];
+            
+            if (!projects.length) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-folder2" style="font-size: 3rem; color: var(--text-muted);"></i>
+                        <p class="mt-3 text-muted">No projects found. Click "Add New Project" to create your first project.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = projects.map(project => `
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <div class="project-title">${project.name}</div>
+                            <div class="project-meta">
+                                <span class="project-category">${project.category}</span>
+                                <span class="project-status status-${project.status}">${project.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="project-body">
+                        <p class="project-description">${project.description}</p>
+                        
+                        <div class="progress-container">
+                            <div class="progress">
+                                <div class="progress-bar" style="width: ${project.progress_percentage}%"></div>
+                            </div>
+                            <div class="progress-info">
+                                <span>Raised: ${formatCurrency(project.total_donations)}</span>
+                                <span>${project.progress_percentage}% of ${formatCurrency(project.target_amount)}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="project-details">
+                            ${project.location ? `
+                                <div class="detail-item">
+                                    <i class="bi bi-geo-alt"></i>
+                                    <span>${project.location}</span>
+                                </div>
+                            ` : ''}
+                            <div class="detail-item">
+                                <i class="bi bi-calendar"></i>
+                                <span>${formatDate(project.start_date)} - ${formatDate(project.end_date)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-people"></i>
+                                <span>${project.beneficiaries_count || 0} beneficiaries</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-heart"></i>
+                                <span>${project.donation_count || 0} donations</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="project-actions">
+                        <button class="btn-action btn-view" onclick="viewProjectDonations(${project.id}, '${project.name.replace(/'/g, "\\'")}')">
+                            <i class="bi bi-eye"></i> View Donations
+                        </button>
+                        <button class="btn-action btn-edit" onclick="openEditProjectModal(${JSON.stringify(project).replace(/"/g, '&quot;')})">
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                        <button class="btn-action btn-delete" onclick="deleteProject(${project.id})">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+        } catch (error) {
+            console.error("Fetch Projects Error:", error);
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: var(--danger);"></i>
+                    <p class="mt-3 text-danger">Error loading projects</p>
+                </div>
+            `;
+        }
+    };
+
+    const fetchStats = async () => {
+        try {
+            const data = await apiFetchJson("/admin/projects-stats");
+            const stats = data.stats || {};
+            
+            if (totalProjectsEl) totalProjectsEl.textContent = stats.total_projects || 0;
+            if (activeProjectsEl) activeProjectsEl.textContent = stats.active_projects || 0;
+            if (completedProjectsEl) completedProjectsEl.textContent = stats.completed_projects || 0;
+            if (totalDonationsEl) totalDonationsEl.textContent = stats.total_donations || 0;
+        } catch (error) {
+            console.error("Fetch Stats Error:", error);
+        }
+    };
+
+    projectForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const id = projectIdInput.value;
+        const name = projectNameInput.value.trim();
+        const category = projectCategoryInput.value;
+        const description = projectDescriptionInput.value.trim();
+        const targetAmount = parseFloat(projectTargetAmountInput.value);
+        const startDate = projectStartDateInput.value;
+        const endDate = projectEndDateInput.value;
+        const status = projectStatusInput.value;
+        const imageUrl = projectImageUrlInput.value.trim();
+        const location = projectLocationInput.value.trim();
+        const beneficiariesCount = parseInt(projectBeneficiariesInput.value) || 0;
+
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+
+        // Validation
+        if (!name || name.length < 3) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Project name must be at least 3 characters long";
+            return;
+        }
+
+        if (!category) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Please select a category";
+            return;
+        }
+
+        if (!description || description.length < 10) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Description must be at least 10 characters long";
+            return;
+        }
+
+        if (!targetAmount || targetAmount <= 0) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Target amount must be greater than 0";
+            return;
+        }
+
+        if (!startDate || !endDate) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Start date and end date are required";
+            return;
+        }
+
+        if (new Date(endDate) <= new Date(startDate)) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "End date must be after start date";
+            return;
+        }
+
+        const payload = {
+            name,
+            category,
+            description,
+            target_amount: targetAmount,
+            start_date: startDate,
+            end_date: endDate,
+            status,
+            image_url: imageUrl || null,
+            location: location || null,
+            beneficiaries_count: beneficiariesCount
+        };
+
+        try {
+            if (id) {
+                // Update Project
+                await apiFetchJson(`/admin/projects/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                // Add Project
+                await apiFetchJson("/admin/projects", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+            }
+            
+            projectModalInstance?.hide();
+            fetchProjects();
+            fetchStats();
+        } catch (error) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = error.message || "Failed to save project";
+        }
+    });
+
+    fetchProjects();
+    fetchStats();
+}
+
+// =======================
+// User Projects Page Functions
+// =======================
+async function initUserProjectsPage() {
+    const container = document.getElementById("projectsContainer");
+    const donationForm = document.getElementById("donationForm");
+    const donationModal = document.getElementById("donationModal");
+    const donationProjectIdInput = document.getElementById("donationProjectId");
+    const donationProjectNameLabel = document.getElementById("donationProjectName");
+    const donationAmountInput = document.getElementById("donationAmount");
+    const donorNameInput = document.getElementById("donorName");
+    const donorEmailInput = document.getElementById("donorEmail");
+    const paymentMethodInput = document.getElementById("paymentMethod");
+    const donationMessageInput = document.getElementById("donationMessage");
+    const anonymousCheckbox = document.getElementById("anonymousDonation");
+    const errorBox = document.getElementById("donationFormError");
+    const errorBoxText = document.getElementById("donationFormErrorText");
+    const successModal = document.getElementById("successModal");
+    const successMessage = document.getElementById("successMessage");
+
+    if (donationModal && window.bootstrap) {
+        donationModalInstance = new bootstrap.Modal(donationModal);
+    }
+    if (successModal && window.bootstrap) {
+        successModalInstance = new bootstrap.Modal(successModal);
+    }
+
+    window.openDonationModal = (project) => {
+        donationProjectIdInput.value = project.id;
+        donationProjectNameLabel.textContent = `Donate to: ${project.name}`;
+        donationAmountInput.value = "";
+        donorNameInput.value = "";
+        donorEmailInput.value = "";
+        paymentMethodInput.value = "";
+        donationMessageInput.value = "";
+        anonymousCheckbox.checked = false;
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+        
+        if (donationModalInstance) {
+            donationModalInstance.show();
+        }
+    };
+
+    const fetchProjects = async () => {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-folder2" style="font-size: 3rem; color: var(--text-muted);"></i>
+                <p class="mt-3 text-muted">Loading projects...</p>
+            </div>
+        `;
+        
+        try {
+            const data = await apiFetchJson("/user/projects");
+            const projects = data.projects || [];
+            
+            if (!projects.length) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-folder2" style="font-size: 3rem; color: var(--text-muted);"></i>
+                        <p class="mt-3 text-muted">No active projects available for donation at the moment.</p>
+                        <p class="text-muted">Please check back later for new fundraising campaigns.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = projects.map(project => `
+                <div class="project-card">
+                    <div class="project-image">
+                        ${project.image_url ? 
+                            `<img src="${project.image_url}" alt="${project.name}" style="width:100%;height:100%;object-fit:cover;">` : 
+                            `<i class="bi bi-folder2-open"></i>`
+                        }
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">${project.name}</h3>
+                        <span class="project-category">${project.category}</span>
+                        <p class="project-description">${project.description}</p>
+                        
+                        ${project.location ? `
+                            <div class="project-meta">
+                                <div class="meta-item">
+                                    <i class="bi bi-geo-alt"></i>
+                                    <span>${project.location}</span>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="project-meta">
+                            <div class="meta-item">
+                                <i class="bi bi-calendar"></i>
+                                <span>${formatDate(project.start_date)} - ${formatDate(project.end_date)}</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="bi bi-people"></i>
+                                <span>${project.beneficiaries_count || 0} beneficiaries</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="bi bi-heart"></i>
+                                <span>${project.donation_count || 0} donations</span>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-container">
+                            <div class="progress">
+                                <div class="progress-bar" style="width: ${project.progress_percentage}%"></div>
+                            </div>
+                            <div class="progress-info">
+                                <span>Raised: ${formatCurrency(project.total_donations)}</span>
+                                <span>${project.progress_percentage}% of ${formatCurrency(project.target_amount)}</span>
+                            </div>
+                        </div>
+                        
+                        <button class="btn-donate" onclick="openDonationModal(${JSON.stringify(project).replace(/"/g, '&quot;')})">
+                            <i class="bi bi-heart-fill me-2"></i>Donate Now
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+        } catch (error) {
+            console.error("Fetch Projects Error:", error);
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: var(--danger);"></i>
+                    <p class="mt-3 text-danger">Error loading projects</p>
+                </div>
+            `;
+        }
+    };
+
+    donationForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        
+        const projectId = donationProjectIdInput.value;
+        const amount = parseFloat(donationAmountInput.value);
+        const donorName = donorNameInput.value.trim();
+        const donorEmail = donorEmailInput.value.trim();
+        const paymentMethod = paymentMethodInput.value;
+        const message = donationMessageInput.value.trim();
+        const anonymous = anonymousCheckbox.checked;
+
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+
+        // Validation
+        if (!amount || amount <= 0) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Please enter a valid donation amount";
+            return;
+        }
+
+        if (!donorName || donorName.length < 2) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Name must be at least 2 characters long";
+            return;
+        }
+
+        if (!donorEmail || !donorEmail.includes('@')) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Please enter a valid email address";
+            return;
+        }
+
+        if (!paymentMethod) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Please select a payment method";
+            return;
+        }
+
+        const payload = {
+            amount,
+            donor_name: donorName,
+            donor_email: donorEmail,
+            payment_method: paymentMethod,
+            message: message || null,
+            anonymous,
+            user_id: getUserId() || null
+        };
+
+        try {
+            await apiFetchJson(`/user/projects/${projectId}/donate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            
+            donationModalInstance?.hide();
+            successMessage.textContent = `Thank you for your generous donation of ${formatCurrency(amount)}! Your contribution will help make a real difference.`;
+            successModalInstance?.show();
+            
+            // Refresh projects to show updated progress
+            fetchProjects();
+            
+            // Reset form
+            donationForm.reset();
+            
+        } catch (error) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = error.message || "Failed to process donation. Please try again.";
+        }
+    });
+
+    fetchProjects();
+}
+

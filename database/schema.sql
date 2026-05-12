@@ -48,3 +48,39 @@ CREATE TABLE expense (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Projects Table
+DROP TABLE IF EXISTS projects;
+CREATE TABLE projects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    target_amount DECIMAL(10,2) NOT NULL,
+    current_amount DECIMAL(10,2) DEFAULT 0.00,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status ENUM('active', 'completed', 'paused', 'cancelled') DEFAULT 'active',
+    image_url VARCHAR(500),
+    location VARCHAR(255),
+    beneficiaries_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Project Donations Table
+DROP TABLE IF EXISTS project_donations;
+CREATE TABLE project_donations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    user_id INT,
+    amount DECIMAL(10,2) NOT NULL,
+    donation_date DATE NOT NULL,
+    donor_name VARCHAR(255),
+    donor_email VARCHAR(255),
+    payment_method VARCHAR(50),
+    message TEXT,
+    anonymous BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);

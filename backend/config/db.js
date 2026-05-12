@@ -82,20 +82,45 @@ const initSchema = () => {
         )
     `);
 
-    // Projects Table
+    // Drop old project tables if they exist and recreate with new schema
+    db.exec("DROP TABLE IF EXISTS project_donations");
+    db.exec("DROP TABLE IF EXISTS projects");
+
+    // Projects Table (Updated for new project management system)
     db.exec(`
-        CREATE TABLE IF NOT EXISTS projects (
+        CREATE TABLE projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ngo_id INTEGER,
-            project_name TEXT NOT NULL,
-            project_code TEXT UNIQUE,
-            focus_area TEXT,
-            description TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            budget REAL DEFAULT 0,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            category TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL DEFAULT 0.00,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
             status TEXT DEFAULT 'active',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            image_url TEXT,
+            location TEXT,
+            beneficiaries_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Project Donations Table
+    db.exec(`
+        CREATE TABLE project_donations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            user_id INTEGER,
+            amount REAL NOT NULL,
+            donation_date TEXT NOT NULL,
+            donor_name TEXT,
+            donor_email TEXT,
+            payment_method TEXT,
+            message TEXT,
+            anonymous INTEGER DEFAULT 0,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         )
     `);
 

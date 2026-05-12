@@ -7,6 +7,151 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .projects-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 24px;
+        margin-top: 24px;
+    }
+    
+    .project-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .project-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px var(--shadow-color);
+    }
+    
+    .project-image {
+        height: 200px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 3rem;
+    }
+    
+    .project-content {
+        padding: 20px;
+    }
+    
+    .project-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-base);
+        margin-bottom: 8px;
+    }
+    
+    .project-category {
+        display: inline-block;
+        padding: 4px 12px;
+        background: var(--primary);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 12px;
+    }
+    
+    .project-description {
+        color: var(--text-muted);
+        margin-bottom: 16px;
+        line-height: 1.5;
+    }
+    
+    .project-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .progress-container {
+        margin: 16px 0;
+    }
+    
+    .progress {
+        height: 8px;
+        background: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary), var(--accent));
+        transition: width 0.3s ease;
+    }
+    
+    .progress-info {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+    
+    .btn-donate {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        width: 100%;
+        transition: background 0.2s ease;
+    }
+    
+    .btn-donate:hover {
+        background: var(--accent);
+    }
+    
+    .modal-content {
+        background: #ffffff !important;
+        color: #333333 !important;
+        border: 2px solid #e0e0e0 !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+    }
+    
+    .form-control {
+        background: #ffffff !important;
+        color: #333333 !important;
+        border: 2px solid #ced4da !important;
+        border-radius: 8px !important;
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+    }
+    
+    .form-control:focus {
+        background: #ffffff !important;
+        color: #333333 !important;
+        border-color: #0f6e4d !important;
+        box-shadow: 0 0 0 3px rgba(15, 110, 77, 0.1) !important;
+        outline: none !important;
+    }
+    
+    .form-label {
+        color: #495057 !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+        font-size: 14px !important;
+    }
+  </style>
 </head>
 <body data-page="user-projects">
 <aside class="sidebar" style="background:linear-gradient(180deg,#0d2e4a 0%,var(--accent) 100%)">
@@ -30,7 +175,7 @@
 </aside>
 
 <header class="topbar">
-  <div class="topbar-title">NGO Projects</div>
+  <div class="topbar-title">Active Projects</div>
   <div class="topbar-right">
     <span class="topbar-date" id="topbarDate"></span>
     <button class="mode-toggle" title="Toggle theme"><i class="bi bi-moon-stars-fill"></i></button>
@@ -44,28 +189,128 @@
 <main class="main-content">
   <div class="page-body">
     <div class="page-header">
-      <h2>NGO Project Management</h2>
-      <p>Create NGOs, assign multiple projects to the same NGO, and manage real project data from one place.</p>
+      <h2>Support Our Projects</h2>
+      <p>Browse active projects and make a difference by donating to causes that matter to you.</p>
     </div>
 
-    <div class="row g-3 section-gap">
-      <div class="col-12 col-md-4">
-        <div class="stat-card income" style="padding:18px 20px">
-          <div class="card-label">Total NGOs</div>
-          <div class="card-value" id="ngoCount">0</div>
+    <div class="projects-grid" id="projectsContainer">
+        <div class="text-center py-5">
+            <i class="bi bi-folder2" style="font-size: 3rem; color: var(--text-muted);"></i>
+            <p class="mt-3 text-muted">Loading projects...</p>
+        </div>
+    </div>
+
+    <!-- Donation Modal -->
+    <div class="modal fade" id="donationModal" tabindex="-1" aria-labelledby="donationModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="d-flex align-items-center">
+              <div class="modal-icon me-3">
+                <i class="bi bi-heart-fill text-danger" style="font-size: 24px;"></i>
+              </div>
+              <div>
+                <h5 class="modal-title mb-1" id="donationModalLabel">Make a Donation</h5>
+                <small class="text-muted" id="donationProjectName">Support this project</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form id="donationForm">
+            <div class="modal-body">
+                <input type="hidden" id="donationProjectId"/>
+                <div class="mb-3">
+                    <label class="form-label">
+                      <i class="bi bi-currency-dollar me-2"></i>Donation Amount
+                    </label>
+                    <input type="number" class="form-control" id="donationAmount" required min="1" step="0.01" placeholder="0.00">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">
+                      <i class="bi bi-person me-2"></i>Your Name
+                    </label>
+                    <input type="text" class="form-control" id="donorName" required placeholder="Enter your name">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">
+                      <i class="bi bi-envelope me-2"></i>Email Address
+                    </label>
+                    <input type="email" class="form-control" id="donorEmail" required placeholder="your.email@example.com">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">
+                      <i class="bi bi-credit-card me-2"></i>Payment Method
+                    </label>
+                    <select class="form-control" id="paymentMethod" required>
+                        <option value="">Select payment method</option>
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="PayPal">PayPal</option>
+                        <option value="Cash">Cash</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">
+                      <i class="bi bi-chat-text me-2"></i>Message (Optional)
+                    </label>
+                    <textarea class="form-control" id="donationMessage" rows="3" placeholder="Add a message of support..."></textarea>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="anonymousDonation">
+                        <label class="form-check-label" for="anonymousDonation">
+                          <i class="bi bi-eye-slash me-2"></i>Make this donation anonymous
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="donationFormError" class="alert alert-danger d-none" role="alert">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  <span id="donationFormErrorText"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <i class="bi bi-x-circle me-2"></i>Cancel
+              </button>
+              <button type="submit" class="btn btn-primary" id="btnDonate">
+                <i class="bi bi-heart me-2"></i>Donate Now
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-      <div class="col-12 col-md-4">
-        <div class="stat-card" style="padding:18px 20px;border-left:4px solid var(--accent)">
-          <div class="card-label">Total Projects</div>
-          <div class="card-value" id="projectCount" style="color:var(--accent)">0</div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body text-center py-4">
+            <div class="mb-3">
+              <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+            </div>
+            <h5 class="mb-2">Thank You for Your Donation!</h5>
+            <p class="text-muted mb-3" id="successMessage">Your generous contribution will make a real difference.</p>
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+          </div>
         </div>
       </div>
-      <div class="col-12 col-md-4">
-        <div class="stat-card" style="padding:18px 20px;border-left:4px solid var(--gold)">
-          <div class="card-label">Combined Budget</div>
-          <div class="card-value" id="projectBudget" style="color:var(--gold)">Rs 0.00</div>
-        </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
       </div>
     </div>
 

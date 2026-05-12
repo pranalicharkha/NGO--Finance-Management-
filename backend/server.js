@@ -17,16 +17,20 @@ app.use(express.static(path.join(__dirname, "..")));
 // Import Routes
 const adminRoutes = require("./routes/adminRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
+const adminProjectRoutes = require("./routes/adminProjectRoutes");
 const userAuthRoutes = require("./routes/userAuthRoutes");
 const userTransactionRoutes = require("./routes/userTransactionRoutes");
+const userProjectRoutes = require("./routes/userProjectRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const projectRoutes = require("./routes/projectRoutes");
 
 // Use Routes
 app.use("/admin", adminRoutes);
 app.use("/admin", adminUserRoutes);
+app.use("/admin", adminProjectRoutes);
 app.use("/user", userAuthRoutes);
 app.use("/user", userTransactionRoutes);
+app.use("/user", userProjectRoutes);
 app.use("/user", reportRoutes);
 app.use("/user", projectRoutes);
 
