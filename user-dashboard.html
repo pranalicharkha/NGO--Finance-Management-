@@ -21,13 +21,10 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Overview</div>
     <a href="user-dashboard.html" class="nav-link active"><i class="bi bi-house"></i><span>Dashboard</span></a>
-    <div class="nav-section-label">Information</div>
-    <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
-    <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
-    <a href="user-calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
-    <div class="nav-section-label">My Account</div>
+    <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Projects</span></a>
     <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-expenses.html" class="nav-link"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
+    <a href="user-transparency.html" class="nav-link"><i class="bi bi-megaphone"></i><span>NGO Updates</span></a>
+    <div class="nav-section-label">My Account</div>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer">
@@ -51,76 +48,102 @@
   <div class="page-body">
     <div class="page-header">
       <h2>Your Impact Dashboard</h2>
-      <p>See only the values that are actually present in the system database.</p>
+      <p>Track project progress and platform activity at a glance.</p>
     </div>
 
+    <!-- Stat cards -->
     <div class="row g-3 section-gap">
-      <div class="col-12 col-sm-6 col-xl-3">
+      <div class="col-12 col-sm-6 col-xl-4">
         <div class="stat-card" style="border-left:4px solid var(--accent)">
           <div class="card-icon" style="background:rgba(26,86,219,0.12);color:var(--accent)">
-            <i class="bi bi-heart-fill"></i>
-          </div>
-          <div class="card-label">Your Total Contributions</div>
-          <div class="card-value" id="userTotalContribution" style="color:var(--accent)">Rs 0.00</div>
-          <div class="card-trend"><i class="bi bi-database"></i> From recorded income entries</div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="stat-card" style="border-left:4px solid var(--primary)">
-          <div class="card-icon income"><i class="bi bi-buildings"></i></div>
-          <div class="card-label">NGOs Listed</div>
-          <div class="card-value" id="userNgoCount" style="color:var(--primary)">0</div>
-          <div class="card-trend"><i class="bi bi-list-ul"></i> Live NGO records</div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="stat-card" style="border-left:4px solid var(--gold)">
-          <div class="card-icon" style="background:rgba(217,119,6,0.12);color:var(--gold)">
             <i class="bi bi-folder2-open"></i>
           </div>
-          <div class="card-label">Projects Recorded</div>
-          <div class="card-value" id="userProjectCount" style="color:var(--gold)">0</div>
-          <div class="card-trend"><i class="bi bi-kanban"></i> Real project records</div>
+          <div class="card-label">Active Projects</div>
+          <div class="card-value" id="userProjectCount" style="color:var(--accent)">0</div>
+          <div class="card-trend"><i class="bi bi-kanban"></i> Projects tracked in the system</div>
         </div>
       </div>
-      <div class="col-12 col-sm-6 col-xl-3">
+      <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card" style="border-left:4px solid var(--gold)">
+          <div class="card-icon" style="background:rgba(217,119,6,0.12);color:var(--gold)">
+            <i class="bi bi-cash-stack"></i>
+          </div>
+          <div class="card-label">Total Budget</div>
+          <div class="card-value" id="userTotalBudget" style="color:var(--gold)">Rs 0.00</div>
+          <div class="card-trend"><i class="bi bi-wallet2"></i> Combined budget across all projects</div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-4">
         <div class="stat-card" style="border-left:4px solid #10b981">
           <div class="card-icon" style="background:rgba(16,185,129,0.12);color:#10b981">
-            <i class="bi bi-clipboard-check-fill"></i>
+            <i class="bi bi-check-circle-fill"></i>
           </div>
-          <div class="card-label">Donations Made</div>
-          <div class="card-value" id="userDonationCount" style="color:#10b981">0</div>
-          <div class="card-trend" id="userDonationLast"><i class="bi bi-clock-history"></i> No donation history yet</div>
+          <div class="card-label">Completed</div>
+          <div class="card-value" id="userCompletedCount" style="color:#10b981">0</div>
+          <div class="card-trend" id="userActiveInfo"><i class="bi bi-lightning"></i> 0 active, 0 planned</div>
         </div>
       </div>
     </div>
 
+    <!-- Row 1: Project Budget Distribution Chart + Donation Trend -->
     <div class="row g-3 section-gap">
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-5">
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Funds Allocation</div>
-              <div class="chart-subtitle">Expense categories from real financial records</div>
+              <div class="chart-title">Budget by Focus Area</div>
+              <div class="chart-subtitle">How budget is distributed across project categories</div>
             </div>
             <span class="chart-badge">Live</span>
           </div>
-          <div style="height:280px;position:relative;"><canvas id="userPieChart"></canvas></div>
-          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No expense data available yet.</div>
+          <div style="height:300px;position:relative;"><canvas id="userPieChart"></canvas></div>
+          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No projects yet. Add projects from the <a href="user-projects.html">Our Projects</a> page.</div>
         </div>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-7">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Donation Trend</div>
+              <div class="chart-subtitle">Donation movement over time from recorded user donations</div>
+            </div>
+            <span class="chart-badge">Live</span>
+          </div>
+          <div style="height:300px;position:relative;"><canvas id="userDonationTrendChart"></canvas></div>
+          <div id="userDonationTrendEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No donation records yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Project Funding + Recent Activity -->
+    <div class="row g-3 section-gap">
+      <div class="col-12 col-lg-7">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Project Funding Overview</div>
+              <div class="chart-subtitle">Budget allocation across all projects</div>
+            </div>
+            <a href="user-projects.html" class="view-all" style="font-size:0.82rem;">Manage Projects &rarr;</a>
+          </div>
+          <div id="projectFundingBars" style="margin-top:8px;">
+            <div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No projects yet. Add projects to see funding progress.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-5">
         <div class="recent-card">
           <div class="recent-header">
-            <h5><i class="bi bi-activity me-2" style="color:var(--text-muted)"></i>Recent NGO And Project Activity</h5>
-            <a href="user-projects.html" class="view-all">Manage Projects &rarr;</a>
+            <h5><i class="bi bi-activity me-2" style="color:var(--text-muted)"></i>Recent Project Activity</h5>
+            <a href="user-projects.html" class="view-all">View All &rarr;</a>
           </div>
           <div class="activity-list" id="userRecentNgoActivity">
             <div class="activity-item">
               <div class="act-info">
-                <div class="act-title">No NGO or project activity yet</div>
-                <div class="act-date">Add NGOs and projects to see updates here.</div>
+                <div class="act-title">No project activity yet</div>
+                <div class="act-date">Add projects to see updates here.</div>
               </div>
             </div>
           </div>
@@ -128,32 +151,33 @@
       </div>
     </div>
 
+    <!-- Platform Snapshot -->
     <div class="row g-3">
       <div class="col-12">
         <div class="chart-card" style="border-left:4px solid var(--primary)">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Database Snapshot</div>
-              <div class="chart-subtitle">This section shows live totals from the current system only.</div>
+              <div class="chart-title">Platform Snapshot</div>
+              <div class="chart-subtitle">Live totals from the system database.</div>
             </div>
           </div>
           <div class="row g-3" style="margin-top:4px;">
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Registered NGOs</div>
-                <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutNgoCount">0</div>
-              </div>
-            </div>
-            <div class="col-12 col-md-4">
-              <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Projects Recorded</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Total Projects</div>
                 <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutProjectCount">0</div>
               </div>
             </div>
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Contribution Entries</div>
-                <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutContributionCount">0</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Active Projects</div>
+                <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutActiveCount">0</div>
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Combined Project Budget</div>
+                <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutTotalBudget">Rs 0.00</div>
               </div>
             </div>
           </div>
@@ -164,6 +188,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260420a"></script>
+<script src="js/script.js?v=20260512l"></script>
 </body>
 </html>

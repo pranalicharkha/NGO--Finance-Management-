@@ -69,6 +69,7 @@ const initSchema = () => {
         )
     `);
 
+    // NGOs Table
     db.exec(`
         CREATE TABLE IF NOT EXISTS ngos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,6 +154,10 @@ const initSchema = () => {
         db.exec("ALTER TABLE income ADD COLUMN user_id INTEGER");
     }
 
+    if (!columnExists("income", "project_id")) {
+        db.exec("ALTER TABLE income ADD COLUMN project_id INTEGER");
+    }
+
     if (!columnExists("expense", "user_id")) {
         db.exec("ALTER TABLE expense ADD COLUMN user_id INTEGER");
     }
@@ -182,26 +187,33 @@ const initSchema = () => {
         console.log('Default users inserted');
     }
 
+    // Ensure at least one default NGO exists (single-NGO platform)
+    const ngoCount = db.prepare('SELECT COUNT(*) as count FROM ngos').get();
+    if (ngoCount.count === 0) {
+        db.prepare('INSERT INTO ngos (ngo_name, registration_no, location, contact_email, description) VALUES (?, ?, ?, ?, ?)').run(
+            'Nidigo Foundation', null, null, null, 'Default NGO for the platform'
+        );
+        console.log('Default NGO inserted');
+    }
+
 };
 
 initSchema();
 
-// Wrap db.query to match MySQL interface
-const originalQuery = db.query;
+// Wrap db.query to match MySQL-style callback interface
 db.query = function(sql, params, callback) {
     try {
         if (callback) {
             setImmediate(() => {
                 try {
                     const stmt = db.prepare(sql);
-                    // Detect if this is an INSERT, UPDATE, or DELETE
                     if (/^\s*(insert|update|delete)/i.test(sql)) {
                         const info = stmt.run(params || []);
-                        callback(null, { 
-                            insertId: info.lastInsertRowid, 
-                            lastID: info.lastInsertRowid, 
-                            changes: info.changes, 
-                            affectedRows: info.changes 
+                        callback(null, {
+                            insertId: info.lastInsertRowid,
+                            lastID: info.lastInsertRowid,
+                            changes: info.changes,
+                            affectedRows: info.changes
                         });
                     } else {
                         const results = stmt.all(params || []);
