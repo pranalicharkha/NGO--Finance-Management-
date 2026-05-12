@@ -1,7 +1,8 @@
 let dashboardTrendChart;
 let dashboardCategoryChart;
 let reportsTrendChart;
-let reportsCategoryChart;
+let reportsIncomeMixChart;
+let reportsExpenseMixChart;
 let reportTransactionsCache = [];
 let transactionModalInstance;
 let ngoProjectCache = [];
@@ -49,8 +50,14 @@ function getUserId() {
 }
 
 async function loadTransactionsFromApi() {
-    const userId = getUserId();
-    const data = await apiFetchJson(`/user/transactions?userId=${userId}`);
+    const isAdminPage = ["dashboard", "income", "expense", "calendar", "reports", "users"].includes(document.body.dataset.page);
+    let data;
+    if (isAdminPage) {
+        data = await apiFetchJson('/admin/transactions');
+    } else {
+        const userId = getUserId();
+        data = await apiFetchJson(`/user/transactions?userId=${userId}`);
+    }
     return (data.transactions || []).map((item) => ({
         ...item,
         date: normalizeDateValue(item.date)
@@ -180,7 +187,8 @@ function initUserLoginPage() {
         const errorBox = document.getElementById("userLoginError");
 
         if (errorBox) {
-            errorBox.style.display = "none";
+            errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
             errorBox.textContent = "";
         }
 
@@ -226,7 +234,8 @@ function initUserRegisterPage() {
         const errorBox = document.getElementById("userRegisterError");
 
         if (errorBox) {
-            errorBox.style.display = "none";
+            errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
             errorBox.textContent = "";
         }
 
@@ -475,6 +484,10 @@ async function initCalendarPage() {
     let currentDate = new Date();
     const transactions = await loadTransactionsFromApi();
 
+    if (transactions.length > 0) {
+        currentDate = new Date(`${transactions[0].date}T00:00:00`);
+    }
+
     function renderCalendar() {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
@@ -501,9 +514,9 @@ async function initCalendarPage() {
             cell.className = "cal-day";
             cell.innerHTML = `
                 <div class="cal-date-num">${day}</div>
-                <div style="display:flex;justify-content:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
-                    ${incomeCount ? `<span class="dot-income"></span><small>${incomeCount}</small>` : ""}
-                    ${expenseCount ? `<span class="dot-expense"></span><small>${expenseCount}</small>` : ""}
+                <div class="cal-dot-wrap">
+                    ${incomeCount ? `<div class="cal-dot income-dot" title="${incomeCount} Income(s)"></div>` : ""}
+                    ${expenseCount ? `<div class="cal-dot expense-dot" title="${expenseCount} Expense(s)"></div>` : ""}
                 </div>
             `;
 
@@ -517,9 +530,9 @@ async function initCalendarPage() {
                        ${dayTransactions.map((item) => `
                         <div style="margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:8px; position: relative;">
                             <strong>${item.type.toUpperCase()}</strong><br>
-                            ${item.source ? `Source: ${item.source}` : `Title: ${item.title}`}<br>
-                            Category: ${item.category}<br>
-                            Amount: ${formatCurrency(item.amount)}
+                            <strong>${item.source ? 'Source:' : 'Title:'}</strong> ${item.source || item.title}<br>
+                            <strong>Category:</strong> ${item.category}<br>
+                            <strong>Amount:</strong> ${formatCurrency(item.amount)}
                             <button class="btn-filter" style="position: absolute; right: 10px; top: 10px; background:var(--danger); padding:4px 8px; font-size:0.75rem" onclick="deleteCalendarEntry('${item.type}', ${item.id})">Delete</button>
                         </div>
                        `).join("")}`;
@@ -561,43 +574,70 @@ async function initCalendarPage() {
 }
 
 function renderReportsCharts(transactions) {
-    if (typeof Chart === "undefined") return;
-    const trendCanvas = document.getElementById("reportsTrendChart");
-    const categoryCanvas = document.getElementById("reportsCategoryChart");
+    try {
+        if (typeof Chart === "undefined") return;
+        const trendCanvas = document.getElementById("reportsTrendChart");
+        const incomeMixCanvas = document.getElementById("reportsIncomeMixChart");
+        const expenseMixCanvas = document.getElementById("reportsExpenseMixChart");
 
-    if (trendCanvas) {
-        const monthlyMap = {};
-        transactions.forEach((item) => {
-            const label = new Date(`${item.date}T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-            if (!monthlyMap[label]) monthlyMap[label] = { income: 0, expense: 0 };
-            if (item.type === "income") monthlyMap[label].income += Number(item.amount);
-            else monthlyMap[label].expense += Number(item.amount);
-        });
-        const labels = Object.keys(monthlyMap);
-        destroyChart(reportsTrendChart);
-        reportsTrendChart = new Chart(trendCanvas, {
-            type: "line",
-            data: {
-                labels,
-                datasets: [
-                    { label: "Income", data: labels.map((label) => monthlyMap[label].income), borderColor: "#0f6e4d", backgroundColor: "rgba(15,110,77,0.12)", tension: 0.35, fill: true },
-                    { label: "Expense", data: labels.map((label) => monthlyMap[label].expense), borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.12)", tension: 0.35, fill: true }
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
+        if (trendCanvas) {
+            const monthlyMap = {};
+            transactions.forEach((item) => {
+                const label = new Date(`${item.date}T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+                if (!monthlyMap[label]) monthlyMap[label] = { income: 0, expense: 0 };
+                if (item.type === "income") monthlyMap[label].income += Number(item.amount);
+                else monthlyMap[label].expense += Number(item.amount);
+            });
+            const labels = Object.keys(monthlyMap).sort((a, b) => new Date("1 " + a) - new Date("1 " + b));
+            destroyChart(reportsTrendChart);
+            reportsTrendChart = new Chart(trendCanvas, {
+                type: "bar",
+                data: {
+                    labels,
+                    datasets: [
+                        { label: "Income", data: labels.map((label) => monthlyMap[label].income), backgroundColor: "#0f6e4d", borderRadius: 4 },
+                        { label: "Expense", data: labels.map((label) => monthlyMap[label].expense), backgroundColor: "#dc2626", borderRadius: 4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            // Store chart reference on canvas for PDF capture
+            trendCanvas.chart = reportsTrendChart;
+        }
 
-    if (categoryCanvas) {
-        const expenseCategoryMap = {};
-        transactions.filter((item) => item.type === "expense").forEach((item) => { expenseCategoryMap[item.category] = (expenseCategoryMap[item.category] || 0) + Number(item.amount); });
-        const labels = Object.keys(expenseCategoryMap);
-        destroyChart(reportsCategoryChart);
-        reportsCategoryChart = new Chart(categoryCanvas, {
-            type: "polarArea",
-            data: { labels, datasets: [{ data: labels.map((label) => expenseCategoryMap[label]), backgroundColor: ["#0f6e4d", "#1a56db", "#d97706", "#dc2626", "#7c3aed", "#14b8a6"] }] },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        if (incomeMixCanvas) {
+            const incomeMap = {};
+            transactions.filter((item) => item.type === "income").forEach((item) => { incomeMap[item.category] = (incomeMap[item.category] || 0) + Number(item.amount); });
+            const labels = Object.keys(incomeMap);
+            destroyChart(reportsIncomeMixChart);
+            if (labels.length > 0) {
+                reportsIncomeMixChart = new Chart(incomeMixCanvas, {
+                    type: "doughnut",
+                    data: { labels, datasets: [{ data: labels.map((label) => incomeMap[label]), backgroundColor: ["#0f6e4d", "#1a56db", "#14b8a6", "#d97706", "#7c3aed"] }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+                // Store chart reference on canvas for PDF capture
+                incomeMixCanvas.chart = reportsIncomeMixChart;
+            }
+        }
+
+        if (expenseMixCanvas) {
+            const expenseMap = {};
+            transactions.filter((item) => item.type === "expense").forEach((item) => { expenseMap[item.category] = (expenseMap[item.category] || 0) + Number(item.amount); });
+            const labels = Object.keys(expenseMap);
+            destroyChart(reportsExpenseMixChart);
+            if (labels.length > 0) {
+                reportsExpenseMixChart = new Chart(expenseMixCanvas, {
+                    type: "doughnut",
+                    data: { labels, datasets: [{ data: labels.map((label) => expenseMap[label]), backgroundColor: ["#dc2626", "#d97706", "#1a56db", "#7c3aed", "#14b8a6"] }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+                // Store chart reference on canvas for PDF capture
+                expenseMixCanvas.chart = reportsExpenseMixChart;
+            }
+        }
+    } catch (err) {
+        console.error("Error drawing charts:", err);
     }
 }
 
@@ -608,6 +648,7 @@ async function initReportsPage() {
     const sumIncome = document.getElementById("sumIncome");
     const sumExpense = document.getElementById("sumExpense");
     const sumBalance = document.getElementById("sumBalance");
+    const programRatio = document.getElementById("programRatio");
     const filterType = document.getElementById("filterType");
     const filterMonth = document.getElementById("filterMonth");
     const filterSearch = document.getElementById("filterSearch");
@@ -640,6 +681,9 @@ async function initReportsPage() {
         }
         return filtered;
     };
+    
+    // Make getFilteredTransactions globally accessible
+    window.getFilteredTransactionsForPDF = getFilteredTransactions;
 
     const exportTransactionsAsCsv = (transactions) => {
         const rows = [["Date", "Type", "Source/Title", "Category", "Payment Method", "Amount", "Description"]];
@@ -707,10 +751,19 @@ async function initReportsPage() {
                 return;
             }
 
+            let adminExpenseTotal = 0;
+
             tbody.innerHTML = transactions.map((item, index) => {
                 const amount = Number(item.amount);
-                if (item.type === "income") incomeTotal += amount;
-                else expenseTotal += amount;
+                if (item.type === "income") {
+                    incomeTotal += amount;
+                } else {
+                    expenseTotal += amount;
+                    const cat = (item.category || "").toLowerCase();
+                    if (cat.includes("admin") || cat.includes("salary") || cat.includes("rent") || cat.includes("util") || cat.includes("office") || cat.includes("software")) {
+                        adminExpenseTotal += amount;
+                    }
+                }
                 return `
                     <tr>
                         <td>${index + 1}</td>
@@ -732,6 +785,14 @@ async function initReportsPage() {
             sumIncome.innerText = formatCurrency(incomeTotal);
             sumExpense.innerText = formatCurrency(expenseTotal);
             sumBalance.innerText = formatCurrency(incomeTotal - expenseTotal);
+
+            if (programRatio) {
+                const programExpenseTotal = expenseTotal - adminExpenseTotal;
+                const ratioValue = expenseTotal > 0 ? Math.round((programExpenseTotal / expenseTotal) * 100) : 0;
+                programRatio.innerText = `${ratioValue}%`;
+                programRatio.style.color = ratioValue >= 75 ? 'var(--primary)' : 'var(--danger)';
+            }
+
             renderReportsCharts(transactions);
         } catch (error) {
             console.error("Reports Error:", error);
@@ -739,6 +800,7 @@ async function initReportsPage() {
             sumIncome.innerText = formatCurrency(0);
             sumExpense.innerText = formatCurrency(0);
             sumBalance.innerText = formatCurrency(0);
+            if (programRatio) programRatio.innerText = "0%";
         }
     };
 
@@ -768,8 +830,57 @@ async function initReportsPage() {
     btnFilter?.addEventListener("click", loadReports);
     btnReset?.addEventListener("click", () => { filterType.value = "all"; filterMonth.value = ""; filterSearch.value = ""; loadReports(); });
     btnExport?.addEventListener("click", async () => {
-        const transactions = getFilteredTransactions(reportTransactionsCache.length ? reportTransactionsCache : await fetchTransactions());
-        exportTransactionsAsCsv(transactions);
+        if (typeof html2pdf === 'undefined') {
+            alert("PDF generator is still loading.");
+            return;
+        }
+        
+        const transactions = getFilteredTransactions(reportTransactionsCache);
+        if (!transactions.length) {
+            alert("No data to export.");
+            return;
+        }
+
+        const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const container = document.createElement("div");
+        container.innerHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <h2 style="text-align: center; color: #0f6e4d; margin-bottom: 5px;">Transaction Ledger</h2>
+                <p style="text-align: center; color: #777; font-size: 14px; margin-bottom: 20px;">Generated On: ${dateStr} | Total Records: ${transactions.length}</p>
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background: #f1f5f9; color: #333;">
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Type</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Source / Title</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Category</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transactions.map(t => `
+                            <tr style="page-break-inside: avoid;">
+                                <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-transform: capitalize; color: ${t.type === 'income' ? '#0f6e4d' : '#dc2626'}">${t.type}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${t.source || t.title || "-"}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${t.category}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatCurrency(t.amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        const opt = {
+            margin:       10,
+            filename:     `Transaction_Ledger_${new Date().toISOString().split('T')[0]}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['css', 'legacy'] }
+        };
+        html2pdf().set(opt).from(container).save();
     });
 
     loadReports();
@@ -2112,11 +2223,12 @@ async function initUsersPage() {
     const userEmailInput = document.getElementById("userEmail");
     const userPasswordInput = document.getElementById("userPassword");
     const errorBox = document.getElementById("userFormError");
+    const errorBoxText = document.getElementById("userFormErrorText");
     const passwordHint = document.getElementById("passwordHint");
     const modalLabel = document.getElementById("userModalLabel");
 
     if (userModal && window.bootstrap) {
-        userModalInstance = bootstrap.Modal.getOrCreateInstance(userModal);
+        userModalInstance = new bootstrap.Modal(userModal);
     }
 
     window.openUserModal = () => {
@@ -2125,9 +2237,15 @@ async function initUsersPage() {
         userEmailInput.value = "";
         userPasswordInput.value = "";
         userPasswordInput.required = true;
-        passwordHint.textContent = "";
-        errorBox.style.display = "none";
+        passwordHint.textContent = "Minimum 6 characters";
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
         modalLabel.textContent = "Add New User";
+        
+        // Show the modal
+        if (userModalInstance) {
+            userModalInstance.show();
+        }
     };
 
     window.openEditUserModal = (id, name, email) => {
@@ -2137,7 +2255,8 @@ async function initUsersPage() {
         userPasswordInput.value = "";
         userPasswordInput.required = false;
         passwordHint.textContent = "(Leave blank to keep unchanged)";
-        errorBox.style.display = "none";
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
         modalLabel.textContent = "Edit User";
         if (userModalInstance) {
             userModalInstance.show();
@@ -2195,7 +2314,30 @@ async function initUsersPage() {
         const email = userEmailInput.value.trim();
         const password = userPasswordInput.value.trim();
 
-        errorBox.style.display = "none";
+        errorBox.classList.add("d-none");
+        errorBox.classList.remove("d-block");
+
+        // Validation
+        if (!name || name.length < 2) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Name must be at least 2 characters long";
+            return;
+        }
+
+        if (!email || !email.includes('@')) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Please enter a valid email address";
+            return;
+        }
+
+        if (!id && (!password || password.length < 6)) {
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = "Password must be at least 6 characters long";
+            return;
+        }
 
         const payload = { name, email };
         if (password) payload.password = password;
@@ -2220,20 +2362,219 @@ async function initUsersPage() {
             userModalInstance?.hide();
             fetchUsers();
         } catch (error) {
-            errorBox.style.display = "block";
-            errorBox.textContent = error.message || "Failed to save user";
+            errorBox.classList.remove("d-none");
+            errorBox.classList.add("d-block");
+            errorBoxText.textContent = error.message || "Failed to save user";
         }
     });
-
     fetchUsers();
 }
+
+window.generatePDF = async function() {
+    if (typeof html2pdf === 'undefined') {
+        alert("PDF generator is still loading. Please try again in a few seconds.");
+        return;
+    }
+
+    // Get filter values from DOM
+    const filterType = document.getElementById("filterType");
+    const filterMonth = document.getElementById("filterMonth");
+    const filterSearch = document.getElementById("filterSearch");
+    
+    // Apply filtering logic directly in PDF generation
+    let transactions = typeof reportTransactionsCache !== "undefined" ? [...reportTransactionsCache] : [];
+    
+    // If no transactions in cache, try to load them
+    if (transactions.length === 0) {
+        try {
+            const isAdminPage = ["dashboard", "income", "expense", "calendar", "reports", "users"].includes(document.body.dataset.page);
+            let data;
+            if (isAdminPage) {
+                data = await apiFetchJson('/admin/transactions');
+            } else {
+                const userId = getUserId();
+                data = await apiFetchJson(`/user/transactions?userId=${userId}`);
+            }
+            transactions = (data.transactions || []).map((item) => ({
+                ...item,
+                date: normalizeDateValue(item.date)
+            }));
+        } catch (error) {
+            console.error("Failed to load transactions for PDF:", error);
+        }
+    }
+    
+    if (filterType && filterType.value !== "all") {
+        transactions = transactions.filter((item) => item.type === filterType.value);
+    }
+    if (filterMonth && filterMonth.value) {
+        transactions = transactions.filter((item) => item.date.startsWith(filterMonth.value));
+    }
+    if (filterSearch && filterSearch.value.trim()) {
+        const keyword = filterSearch.value.trim().toLowerCase();
+        transactions = transactions.filter((item) =>
+            [item.source, item.title, item.category, item.description, formatPaymentMethod(item.payment_method)]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(keyword))
+        );
+    }
+
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    
+    transactions.forEach(t => {
+        if (t.type === 'income') incomeTotal += Number(t.amount);
+        else expenseTotal += Number(t.amount);
+    });
+    
+    const balance = incomeTotal - expenseTotal;
+    const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    // Ensure charts are rendered and capture chart images
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const trendCanvas = document.getElementById("reportsTrendChart");
+    const incomeCanvas = document.getElementById("reportsIncomeMixChart");
+    const expenseCanvas = document.getElementById("reportsExpenseMixChart");
+
+    // Enhanced chart capture with better error handling
+    const getCanvasImage = (canvas) => {
+        try {
+            if (!canvas || !canvas.getContext) return "";
+            // Force chart to render before capturing
+            if (window.Chart && canvas.chart) {
+                canvas.chart.update();
+            }
+            return canvas.toDataURL("image/png", 0.9);
+        } catch (error) {
+            console.warn("Failed to capture chart:", error);
+            return "";
+        }
+    };
+
+    const trendImg = getCanvasImage(trendCanvas);
+    const incomeImg = getCanvasImage(incomeCanvas);
+    const expenseImg = getCanvasImage(expenseCanvas);
+
+    const reportContainer = document.createElement("div");
+    reportContainer.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: auto;">
+            <!-- 1. Header -->
+            <div style="text-align: center; border-bottom: 3px solid #0f6e4d; padding-bottom: 20px; margin-bottom: 20px;">
+                <h1 style="margin: 0; color: #0f6e4d; font-size: 28px;">Nidigo Finance System</h1>
+                <h2 style="margin: 5px 0; color: #555; font-size: 20px;">Financial Summary Report</h2>
+                <p style="margin: 5px 0 0; font-size: 14px; color: #777;">Generated By: Admin | Generated On: ${dateStr}</p>
+            </div>
+            
+            <!-- 2. Executive Summary -->
+            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #444;">1. Executive Summary</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; width: 25%;"><strong>Total Income</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd; width: 25%; color: #0f6e4d; font-weight: bold;">${formatCurrency(incomeTotal)}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; width: 25%;"><strong>Total Expenses</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd; width: 25%; color: #dc2626; font-weight: bold;">${formatCurrency(expenseTotal)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Current Balance</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold; color: ${balance >= 0 ? '#0f6e4d' : '#dc2626'}">${formatCurrency(balance)}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Total Records</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">${transactions.length} Transactions</td>
+                </tr>
+            </table>
+
+            <!-- 3. Visual Analytics -->
+            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #444; page-break-before: always;">2. Visual Analytics</h3>
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h4 style="margin-bottom: 10px; color: #555;">Filtered Trend Analysis</h4>
+                ${trendImg ? `<img src="${trendImg}" style="max-width: 100%; height: 260px; object-fit: contain;">` : '<p>No data available</p>'}
+            </div>
+            <div style="display: flex; justify-content: space-around; margin-bottom: 30px;">
+                <div style="text-align: center; width: 45%;">
+                    <h4 style="margin-bottom: 10px; color: #555;">Income Mix</h4>
+                    ${incomeImg ? `<img src="${incomeImg}" style="max-width: 100%; height: 200px; object-fit: contain;">` : '<p>No data available</p>'}
+                </div>
+                <div style="text-align: center; width: 45%;">
+                    <h4 style="margin-bottom: 10px; color: #555;">Expense Mix</h4>
+                    ${expenseImg ? `<img src="${expenseImg}" style="max-width: 100%; height: 200px; object-fit: contain;">` : '<p>No data available</p>'}
+                </div>
+            </div>
+
+            <!-- 4. Donation / Income Report -->
+            <div style="page-break-before: always;"></div>
+            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #444;">3. Donation & Income Report</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px;">
+                <thead>
+                    <tr style="background: #0f6e4d; color: white;">
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Donor / Source</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Category</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${transactions.filter(t=>t.type==='income').map(t => `
+                        <tr style="page-break-inside: avoid;">
+                            <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${t.source || t.title || "-"}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${t.category}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #0f6e4d;">${formatCurrency(t.amount)}</td>
+                        </tr>
+                    `).join('')}
+                    ${transactions.filter(t=>t.type==='income').length === 0 ? '<tr><td colspan="4" style="padding: 10px; text-align: center;">No income records found</td></tr>' : ''}
+                </tbody>
+            </table>
+
+            <!-- 5. Expense Report -->
+            <div style="page-break-before: always;"></div>
+            <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #444;">4. Expense Report</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px;">
+                <thead>
+                    <tr style="background: #dc2626; color: white;">
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Title / Vendor</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Category</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${transactions.filter(t=>t.type==='expense').map(t => `
+                        <tr style="page-break-inside: avoid;">
+                            <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${t.source || t.title || "-"}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${t.category}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #dc2626;">${formatCurrency(t.amount)}</td>
+                        </tr>
+                    `).join('')}
+                    ${transactions.filter(t=>t.type==='expense').length === 0 ? '<tr><td colspan="4" style="padding: 10px; text-align: center;">No expense records found</td></tr>' : ''}
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px;">
+                This is an electronically generated report by the Nidigo Finance System.
+            </div>
+        </div>
+    `;
+
+    const opt = {
+        margin:       10,
+        filename:     `NGO_Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(reportContainer).save();
+};
 
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setTopbarDate();
     applyUserSession();
     document.querySelectorAll(".mode-toggle").forEach((button) => button.addEventListener("click", toggleTheme));
-
+    
+    
     const page = document.body.dataset.page;
 
     if (["dashboard", "income", "expense", "calendar", "reports", "users"].includes(page)) {

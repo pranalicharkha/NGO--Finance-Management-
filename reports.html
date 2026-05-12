@@ -46,18 +46,23 @@
       <p>Review ledger records, apply filters, and analyze NGO financial trends.</p>
     </div>
 
-    <div class="row g-3 section-gap">
+    <div class="row g-3 section-gap" id="reportsStatCards">
       <div class="col-6 col-xl-3"><div class="stat-card income" style="padding:18px 20px"><div class="card-label">Filtered Income</div><div class="card-value" id="sumIncome" style="font-size:1.45rem">Rs 0.00</div></div></div>
       <div class="col-6 col-xl-3"><div class="stat-card expense" style="padding:18px 20px"><div class="card-label">Filtered Expenses</div><div class="card-value" id="sumExpense" style="font-size:1.45rem">Rs 0.00</div></div></div>
       <div class="col-12 col-xl-3"><div class="stat-card balance" style="padding:18px 20px"><div class="card-label">Net Balance</div><div class="card-value" id="sumBalance" style="font-size:1.45rem">Rs 0.00</div></div></div>
-      <div class="col-12 col-xl-3 d-flex align-items-center">
-        <button onclick="window.print()" style="background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 20px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s;width:100%;justify-content:center;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'"><i class="bi bi-printer"></i> Print Report</button>
+      <div class="col-12 col-xl-3"><div class="stat-card" style="padding:18px 20px; border-bottom: 3px solid var(--primary)"><div class="card-label">Program Exp. Ratio <i class="bi bi-info-circle ms-1" title="Percentage of expenses going to actual programs/causes vs admin overhead. Target > 75%"></i></div><div class="card-value" id="programRatio" style="font-size:1.45rem; color:var(--primary); margin-top:5px;">0%</div></div></div>
+    </div>
+
+    <div class="row g-3 section-gap" id="pdfActionRow">
+      <div class="col-12 d-flex justify-content-end">
+        <button onclick="generatePDF()" class="btn-filter" style="padding:11px 24px; display:flex; align-items:center; gap:8px;"><i class="bi bi-file-earmark-pdf"></i> Generate PDF Report</button>
       </div>
     </div>
 
     <div class="row g-3 section-gap">
-      <div class="col-12 col-lg-8"><div class="chart-card"><div class="chart-header"><div><h5 class="chart-title">Filtered Trend Analysis</h5><div class="chart-subtitle">Review month-wise movement for the selected records.</div></div></div><div style="height:320px"><canvas id="reportsTrendChart"></canvas></div></div></div>
-      <div class="col-12 col-lg-4"><div class="chart-card"><div class="chart-header"><div><h5 class="chart-title">Expense Mix</h5><div class="chart-subtitle">See which categories consume the most budget.</div></div></div><div style="height:320px"><canvas id="reportsCategoryChart"></canvas></div></div></div>
+      <div class="col-12 col-lg-6"><div class="chart-card"><div class="chart-header"><div><h5 class="chart-title">Filtered Trend Analysis</h5><div class="chart-subtitle">Review month-wise movement for the selected records.</div></div></div><div style="height:320px"><canvas id="reportsTrendChart"></canvas></div></div></div>
+      <div class="col-12 col-lg-3"><div class="chart-card"><div class="chart-header"><div><h5 class="chart-title">Income Mix</h5><div class="chart-subtitle">See your top income sources.</div></div></div><div style="height:320px"><canvas id="reportsIncomeMixChart"></canvas></div></div></div>
+      <div class="col-12 col-lg-3"><div class="chart-card"><div class="chart-header"><div><h5 class="chart-title">Expense Mix</h5><div class="chart-subtitle">See which categories consume the most budget.</div></div></div><div style="height:320px"><canvas id="reportsExpenseMixChart"></canvas></div></div></div>
     </div>
 
     <div class="reports-card">
@@ -68,7 +73,7 @@
           <input type="month" id="filterMonth" title="Filter by month">
           <input type="text" id="filterSearch" placeholder="Search source, title, category">
           <button class="btn-filter" id="btnFilter"><i class="bi bi-funnel me-1"></i> Filter</button>
-          <button class="btn-filter" id="btnExport" style="background:var(--accent)"><i class="bi bi-download me-1"></i> Export CSV</button>
+          <button class="btn-filter" id="btnExport" style="background:var(--accent)"><i class="bi bi-file-earmark-pdf me-1"></i> Export PDF</button>
           <button id="btnReset" style="background: transparent;border: 1.5px solid var(--border);border-radius: var(--radius-xs);padding: 8px 14px;font-family: 'Inter', sans-serif;font-size: 0.84rem;color: var(--text-muted);cursor: pointer;transition: all 0.2s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'"><i class="bi bi-x-lg me-1"></i> Reset</button>
         </div>
       </div>
@@ -109,6 +114,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="js/script.js"></script>
 </body>
 </html>

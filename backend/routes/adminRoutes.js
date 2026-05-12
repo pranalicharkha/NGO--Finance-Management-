@@ -202,4 +202,79 @@ router.get("/dashboard", (req, res) => {
     }
 });
 
+router.get("/transactions", (req, res) => {
+    try {
+        const type = req.query.type;
+        const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
+
+        const shouldFetchIncome = !type || type === "income";
+        const shouldFetchExpense = !type || type === "expense";
+
+        let incomeResults = [];
+        let expenseResults = [];
+
+        if (shouldFetchIncome) {
+            const sql = `
+                SELECT
+                    id, date, category, source, payment_method, amount, description, user_id
+                FROM income
+            `;
+            incomeResults = db.prepare(sql).all();
+        }
+
+        if (shouldFetchExpense) {
+            const sql = `
+                SELECT
+                    id, date, category, title, payment_method, amount, description, user_id
+                FROM expense
+            `;
+            expenseResults = db.prepare(sql).all();
+        }
+
+        const transactions = [
+            ...incomeResults.map((item) => ({
+                id: item.id,
+                date: item.date,
+                category: item.category,
+                title: item.source,
+                source: item.source,
+                payment_method: item.payment_method,
+                amount: Number(item.amount || 0),
+                description: item.description,
+                type: "income",
+                userId: item.user_id
+            })),
+            ...expenseResults.map((item) => ({
+                id: item.id,
+                date: item.date,
+                category: item.category,
+                title: item.title,
+                source: "",
+                payment_method: item.payment_method,
+                amount: Number(item.amount || 0),
+                description: item.description,
+                type: "expense",
+                userId: item.user_id
+            }))
+        ].sort((a, b) => {
+            const dateCompare = new Date(b.date) - new Date(a.date);
+            if (dateCompare !== 0) return dateCompare;
+            return b.id - a.id;
+        });
+
+        const limitedTransactions = limit ? transactions.slice(0, limit) : transactions;
+
+        res.json({
+            success: true,
+            transactions: limitedTransactions
+        });
+    } catch (error) {
+        console.log("Admin Transaction Fetch Error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch transactions"
+        });
+    }
+});
+
 module.exports = router;

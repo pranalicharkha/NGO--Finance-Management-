@@ -54,6 +54,88 @@
     background: var(--danger);
     color: #fff;
 }
+
+/* Enhanced form styling for better visibility */
+.modal-content {
+    background: #ffffff !important;
+    color: #333333 !important;
+    border: 2px solid #e0e0e0 !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.modal-header {
+    background: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    padding: 16px 20px !important;
+}
+
+.modal-body {
+    background: #ffffff !important;
+    padding: 24px 20px !important;
+}
+
+.modal-footer {
+    background: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+    padding: 16px 20px !important;
+}
+
+.form-control {
+    background: #ffffff !important;
+    color: #333333 !important;
+    border: 2px solid #ced4da !important;
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+}
+
+.form-control:focus {
+    background: #ffffff !important;
+    color: #333333 !important;
+    border-color: #0f6e4d !important;
+    box-shadow: 0 0 0 3px rgba(15, 110, 77, 0.1) !important;
+    outline: none !important;
+}
+
+.form-label {
+    color: #495057 !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+    font-size: 14px !important;
+}
+
+.btn-primary {
+    background: #0f6e4d !important;
+    border-color: #0f6e4d !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+}
+
+.btn-primary:hover {
+    background: #0a5135 !important;
+    border-color: #0a5135 !important;
+}
+
+.btn-secondary {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+    font-weight: 500 !important;
+    background: #f8d7da !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    border: 1px solid #f5c6cb !important;
+}
 </style>
 </head>
 <body data-page="users">
@@ -133,31 +215,62 @@
 <!-- User Modal -->
 <div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="background:var(--bg-card);color:var(--text-base);border:1px solid var(--border-color);">
-      <div class="modal-header" style="border-bottom:1px solid var(--border-color);">
-        <h5 class="modal-title" id="userModalLabel">Add New User</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter:var(--invert-icon)"></button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center">
+          <div class="modal-icon me-3">
+            <i class="bi bi-person-plus-fill text-primary" style="font-size: 24px;"></i>
+          </div>
+          <div>
+            <h5 class="modal-title mb-1" id="userModalLabel">Add New User</h5>
+            <small class="text-muted">Fill in the details below to create a new user account</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="userForm">
         <div class="modal-body">
             <input type="hidden" id="userId" value=""/>
-            <div class="mb-3">
-                <label class="form-label">Full Name</label>
-                <input type="text" class="form-control" id="userName" required style="background:var(--bg-base);color:var(--text-base);border:1px solid var(--border-color);">
+            <div class="mb-4">
+                <label class="form-label">
+                  <i class="bi bi-person me-2"></i>Full Name
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                  <input type="text" class="form-control" id="userName" required placeholder="Enter user's full name">
+                </div>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Email Address</label>
-                <input type="email" class="form-control" id="userEmail" required style="background:var(--bg-base);color:var(--text-base);border:1px solid var(--border-color);">
+            <div class="mb-4">
+                <label class="form-label">
+                  <i class="bi bi-envelope me-2"></i>Email Address
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-envelope-fill"></i></span>
+                  <input type="email" class="form-control" id="userEmail" required placeholder="user@example.com">
+                </div>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Password <small id="passwordHint" style="color:var(--text-muted);"></small></label>
-                <input type="password" class="form-control" id="userPassword" style="background:var(--bg-base);color:var(--text-base);border:1px solid var(--border-color);">
+            <div class="mb-4">
+                <label class="form-label">
+                  <i class="bi bi-lock me-2"></i>Password 
+                  <small id="passwordHint" class="text-muted ms-2"></small>
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                  <input type="password" class="form-control" id="userPassword" placeholder="Enter secure password">
+                </div>
             </div>
-            <div id="userFormError" class="text-danger mb-2" style="display:none; font-size:0.9rem;"></div>
+            <div id="userFormError" class="alert alert-danger d-none" role="alert">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <span id="userFormErrorText"></span>
+            </div>
         </div>
-        <div class="modal-footer" style="border-top:1px solid var(--border-color);">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveUser">Save User</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-2"></i>Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" id="btnSaveUser">
+            <i class="bi bi-check-circle me-2"></i>Save User
+          </button>
         </div>
       </form>
     </div>

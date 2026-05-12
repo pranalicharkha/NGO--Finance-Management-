@@ -1,0 +1,66 @@
+# Nidigo Finance System - Web Crawler Configuration
+# This file helps web crawlers properly understand the application's navigation structure
+
+User-Agent: *
+Allow: /
+
+# Crawl Delay (to be respectful)
+Crawl-delay: 1
+
+# Primary Entry Points
+# These are the main starting points for web crawlers
+Sitemap: https://yourdomain.com/sitemap.xml
+
+# Distinct Login Flows
+# Admin and User have separate login paths - these should be treated as distinct user journeys
+# After login, internal navigation (dashboard, reports, etc.) should NOT be treated as separate crawl paths
+
+# Login Flow Priority:
+# 1. Landing page (index.html) - Portal selection
+# 2. Admin login (admin-login.html) - Admin authentication 
+# 3. User login (user-login.html) - User/donor authentication
+# 4. Post-login dashboards - Internal navigation, NOT separate crawl targets
+
+# IMPORTANT: ONLY track portal and login pages for crawling
+# Internal pages like dashboard, income, expense, reports, etc. are IGNORED
+# They are NOT separate crawl starting points - they are internal navigation
+
+# ONLY allow these pages for crawler tracking:
+# 1. Landing page (portal selection)
+# 2. Admin login page  
+# 3. User login page
+# 4. Public transparency page
+
+# Disallow ALL internal authenticated pages from being crawl starting points
+# This prevents crawlers from treating internal navigation as separate paths
+Disallow: /dashboard.html
+Disallow: /reports.html  
+Disallow: /income.html
+Disallow: /expense.html
+Disallow: /calendar.html
+Disallow: /users.html
+Disallow: /user-dashboard.html
+Disallow: /user-donations.html
+Disallow: /user-expenses.html
+Disallow: /user-projects.html
+Disallow: /user-transparency.html
+Disallow: /user-profile.html
+Disallow: /user-calendar.html
+
+# Only allow public transparency page (no login required)
+Allow: /public-transparency.html
+
+# Disallow temporary or system pages
+Disallow: /admin/
+Disallow: /backend/
+Disallow: /database/
+Disallow: /node_modules/
+Disallow: /*.json$
+Disallow: /*.js$
+Disallow: /*.css$
+
+# Special Instructions for Crawlers
+# 1. The application has two distinct user types: Admin and User/Donor
+# 2. Each has separate login flows from the main landing page
+# 3. Internal navigation within authenticated sessions should be ignored as separate crawl paths
+# 4. Focus crawl on login authentication flows and public transparency pages
