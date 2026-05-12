@@ -8,6 +8,8 @@ let transactionModalInstance;
 let ngoProjectCache = [];
 let userPieChart;
 let donationTrendChart;
+let donationCategoryChart;
+let userDonationTrendChart;
 
 async function apiFetchJson(url, options = {}) {
     const response = await fetch(url, {
@@ -210,6 +212,7 @@ function initUserLoginPage() {
             }
 
             sessionStorage.setItem("nidigoUser", JSON.stringify(data.user));
+            localStorage.setItem("nidigoUserProfile", JSON.stringify(data.user));
             window.location.href = "user-dashboard.html";
         } catch (error) {
             console.error("User login error:", error);
@@ -256,8 +259,14 @@ function initUserRegisterPage() {
                 return;
             }
 
-            alert("Registration successful. Please login.");
-            window.location.href = "user-login.html";
+            if (data.user) {
+                sessionStorage.setItem("nidigoUser", JSON.stringify(data.user));
+                localStorage.setItem("nidigoUserProfile", JSON.stringify(data.user));
+                window.location.href = "user-dashboard.html";
+            } else {
+                alert("Registration successful. Please login.");
+                window.location.href = "user-login.html";
+            }
         } catch (error) {
             console.error("User register error:", error);
             if (errorBox) {
@@ -900,100 +909,218 @@ function exportRowsAsCsv(filename, rows) {
 
 async function initUserDashboardPage() {
     const recentContainer = document.getElementById("userRecentNgoActivity");
-    const userCanvas = document.getElementById("userPieChart");
-    const emptyChartText = document.getElementById("userPieChartEmpty");
+    const pieCanvas = document.getElementById("userPieChart");
+    const pieEmpty = document.getElementById("userPieChartEmpty");
+    const trendCanvas = document.getElementById("userDonationTrendChart");
+    const trendEmpty = document.getElementById("userDonationTrendEmpty");
+    const fundingContainer = document.getElementById("projectFundingBars");
 
     if (!recentContainer) return;
 
     try {
-        const [dashboardData, transactionData, categoryData, ngoData] = await Promise.all([
-            apiFetchJson(`/user/dashboard?userId=${getUserId()}`),
-            apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`),
-            apiFetchJson(`/user/category-report?userId=${getUserId()}`),
-            apiFetchJson(`/user/ngos?userId=${getUserId()}`)
+        const [ngoData, donationData] = await Promise.all([
+            apiFetchJson(`/user/ngos?userId=${getUserId()}`),
+            apiFetchJson(`/user/transactions?type=income&projectLinked=true&userId=${getUserId()}`)
         ]);
 
-        const incomeTransactions = transactionData.transactions || [];
         const ngos = ngoData.ngos || [];
-        const projectCount = ngos.reduce((sum, ngo) => sum + (ngo.projects || []).length, 0);
-        const latestDonation = incomeTransactions[0] || null;
+        const donations = donationData.transactions || [];
+        const allProjects = ngos.flatMap(ngo => (ngo.projects || []).map(p => ({ ...p })));
+        const totalBudget = ngos.reduce((sum, ngo) => sum + Number(ngo.totals?.totalBudget || 0), 0);
 
-        setText("userTotalContribution", formatCurrency(dashboardData.totalIncome || 0));
-        setText("userDonationCount", String(incomeTransactions.length));
-        setText("userNgoCount", String(ngos.length));
-        setText("userProjectCount", String(projectCount));
-        setText("aboutNgoCount", String(ngos.length));
-        setText("aboutProjectCount", String(projectCount));
-        setText("aboutContributionCount", String(incomeTransactions.length));
-        setText(
-            "userDonationLast",
-            latestDonation
-                ? `Latest donation: ${formatDate(latestDonation.date)}`
-                : "No donation history yet"
-        );
+        const activeCount = allProjects.filter(p => p.status === "active").length;
+        const completedCount = allProjects.filter(p => p.status === "completed").length;
+        const plannedCount = allProjects.filter(p => p.status === "planned").length;
 
+        // Stat cards
+        setText("userProjectCount", String(allProjects.length));
+        setText("userTotalBudget", formatCurrency(totalBudget));
+        setText("userCompletedCount", String(completedCount));
+        setText("userActiveInfo", activeCount + " active, " + plannedCount + " planned");
+
+        // Platform snapshot
+        setText("aboutProjectCount", String(allProjects.length));
+        setText("aboutActiveCount", String(activeCount));
+        setText("aboutTotalBudget", formatCurrency(totalBudget));
+
+        // ===== 1. BUDGET BY FOCUS AREA (Doughnut) =====
+        const focusMap = {};
+        allProjects.forEach(p => {
+            const area = p.focus_area || "General";
+            focusMap[area] = (focusMap[area] || 0) + Number(p.budget || 0);
+        });
+        const pieLabels = Object.keys(focusMap);
+        const pieValues = Object.values(focusMap);
+
+        if (!pieLabels.length) {
+            if (pieEmpty) pieEmpty.style.display = "block";
+        } else if (pieCanvas && typeof Chart !== "undefined") {
+            if (pieEmpty) pieEmpty.style.display = "none";
+            destroyChart(userPieChart);
+            userPieChart = new Chart(pieCanvas, {
+                type: "doughnut",
+                data: {
+                    labels: pieLabels,
+                    datasets: [{
+                        data: pieValues,
+                        backgroundColor: ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"],
+                        borderWidth: 2,
+                        borderColor: "var(--card-bg)"
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: "65%",
+                    plugins: {
+                        legend: { position: "bottom", labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 } },
+                        tooltip: {
+                            callbacks: { label: function(ctx) { return ctx.label + ": Rs " + Number(ctx.raw).toLocaleString("en-IN"); } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ===== 2. PROJECT FUNDING PROGRESS BARS =====
+        if (fundingContainer) {
+            if (!allProjects.length) {
+                fundingContainer.innerHTML = '<div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No projects yet. Add projects to see funding progress.</div>';
+            } else {
+                const maxBudget = Math.max(...allProjects.map(p => Number(p.budget || 0)), 1);
+                const colors = ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"];
+                fundingContainer.innerHTML = allProjects.map((project, i) => {
+                    const budget = Number(project.budget || 0);
+                    const pct = maxBudget > 0 ? Math.round((budget / maxBudget) * 100) : 0;
+                    const color = colors[i % colors.length];
+                    const statusDot = project.status === "active" ? "\u2705" : project.status === "completed" ? "\u2714\uFE0F" : "\u23F3";
+                    return `
+                        <div style="margin-bottom:18px;">
+                            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name)}</div>
+                                <div style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;margin-left:12px;">${formatCurrency(budget)}</div>
+                            </div>
+                            <div style="background:var(--surface-2);border-radius:999px;height:22px;overflow:hidden;border:1px solid var(--border);position:relative;">
+                                <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${color},${color}cc);border-radius:999px;transition:width 0.8s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">
+                                    ${pct >= 15 ? '<span style="font-size:0.7rem;font-weight:700;color:white;">' + formatCurrency(budget) + '</span>' : ''}
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || "General")} \u2022 ${formatProjectStatus(project.status)}</div>
+                        </div>
+                    `;
+                }).join("");
+            }
+        }
+
+        // ===== 3. DONATION TREND LINE CHART =====
+        if (!donations.length) {
+            if (trendEmpty) trendEmpty.style.display = "block";
+            destroyChart(userDonationTrendChart);
+        } else if (trendCanvas && typeof Chart !== "undefined") {
+            if (trendEmpty) trendEmpty.style.display = "none";
+            const groupedDonations = donations
+                .slice()
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                .reduce((map, item) => {
+                    const key = normalizeDateValue(item.date);
+                    map[key] = (map[key] || 0) + Number(item.amount || 0);
+                    return map;
+                }, {});
+            const donationDates = Object.keys(groupedDonations);
+            const firstDate = new Date(`${donationDates[0]}T00:00:00`);
+            firstDate.setDate(firstDate.getDate() - 1);
+            const baselineDate = normalizeDateValue(firstDate.toISOString().slice(0, 10));
+            const trendLabels = [baselineDate, ...donationDates];
+            let runningTotal = 0;
+            const trendValues = trendLabels.map((label) => {
+                runningTotal += Number(groupedDonations[label] || 0);
+                return runningTotal;
+            });
+
+            destroyChart(userDonationTrendChart);
+            userDonationTrendChart = new Chart(trendCanvas, {
+                type: "line",
+                data: {
+                    labels: trendLabels.map((label) => formatDate(label)),
+                    datasets: [{
+                        label: "Donations",
+                        data: trendValues,
+                        borderColor: "#0f6e4d",
+                        backgroundColor: "rgba(15,110,77,0.14)",
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: "#0f6e4d"
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => formatCurrency(context.raw)
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (value) => formatCurrency(value)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ===== Recent project activity =====
         const recentProjects = ngos
             .flatMap((ngo) => (ngo.projects || []).map((project) => ({
                 ngoName: ngo.ngo_name,
                 project
             })))
             .sort((a, b) => b.project.id - a.project.id)
-            .slice(0, 4);
+            .slice(0, 5);
 
         if (!recentProjects.length) {
             recentContainer.innerHTML = `
                 <div class="activity-item">
                     <div class="act-info">
-                        <div class="act-title">No NGO or project activity yet</div>
-                        <div class="act-date">Add NGOs and projects to see updates here.</div>
+                        <div class="act-title">No project activity yet</div>
+                        <div class="act-date">Add projects to see updates here.</div>
                     </div>
                 </div>
             `;
         } else {
+            const statusIcons = { active: "bi-play-circle-fill", completed: "bi-check-circle-fill", planned: "bi-clock-fill", on_hold: "bi-pause-circle-fill" };
+            const statusColors = { active: "#1a56db", completed: "#10b981", planned: "#d97706", on_hold: "#dc2626" };
             recentContainer.innerHTML = recentProjects.map((item) => `
                 <div class="activity-item">
-                    <div class="act-icon income-icon"><i class="bi bi-folder2-open"></i></div>
+                    <div class="act-icon" style="background:rgba(26,86,219,0.1);color:${statusColors[item.project.status] || '#1a56db'}"><i class="bi ${statusIcons[item.project.status] || 'bi-folder2-open'}"></i></div>
                     <div class="act-info">
                         <div class="act-title">${escapeHtml(item.project.project_name)}</div>
-                        <div class="act-date">${escapeHtml(item.ngoName)} • ${escapeHtml(formatProjectStatus(item.project.status))}</div>
+                        <div class="act-date">${escapeHtml(formatProjectStatus(item.project.status))} \u2022 Budget: ${formatCurrency(item.project.budget || 0)}</div>
                     </div>
                 </div>
             `).join("");
         }
 
-        const labels = (categoryData.categories || []).map((item) => item.category);
-        const values = (categoryData.categories || []).map((item) => Number(item.totalExpense || 0));
-
-        if (!labels.length) {
-            if (emptyChartText) emptyChartText.style.display = "block";
-        } else if (userCanvas && typeof Chart !== "undefined") {
-            if (emptyChartText) emptyChartText.style.display = "none";
-            destroyChart(userPieChart);
-            userPieChart = new Chart(userCanvas, {
-                type: "doughnut",
-                data: {
-                    labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: ["#0f6e4d", "#1a56db", "#0891b2", "#d97706", "#dc2626", "#14b8a6"]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
-        }
     } catch (error) {
         console.error("User dashboard error:", error);
-        recentContainer.innerHTML = `
-            <div class="activity-item">
-                <div class="act-info">
-                    <div class="act-title">Unable to load dashboard data</div>
-                    <div class="act-date">Please check the backend and database connection.</div>
+        if (recentContainer) {
+            recentContainer.innerHTML = `
+                <div class="activity-item">
+                    <div class="act-info">
+                        <div class="act-title">Unable to load dashboard data</div>
+                        <div class="act-date">Please check the backend and database connection.</div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     }
 }
 
@@ -1028,21 +1155,27 @@ async function initUserTransparencyPage() {
 async function initUserDonationsPage() {
     const tbody = document.getElementById("donationHistoryBody");
     const exportButton = document.getElementById("donationExportBtn");
-    const donationForm = document.getElementById("donationForm");
     const messageBox = document.getElementById("donationFormMessage");
-    const donationChartCanvas = document.getElementById("donationTrendChart");
+    const donationChartCanvas = document.getElementById("donationPeriodChart");
+    const donationRangeSelect = document.getElementById("donationPeriodRange");
+    const donationMonthPicker = document.getElementById("donationMonthPicker");
+    const donationYearPicker = document.getElementById("donationYearPicker");
+    const donationCategoryCanvas = document.getElementById("donationCategoryChart");
     const donationChartEmpty = document.getElementById("donationTrendChartEmpty");
-    if (!tbody) return;
-
-    const donationFields = {
-        id: document.getElementById("donationId"),
-        date: document.getElementById("donationDate"),
-        category: document.getElementById("donationCategory"),
-        source: document.getElementById("donationSource"),
-        method: document.getElementById("donationMethod"),
-        amount: document.getElementById("donationAmount"),
-        description: document.getElementById("donationDescription")
+    const donationCategoryChartEmpty = document.getElementById("donationCategoryChartEmpty");
+    const projectModalElement = document.getElementById("donationProjectModal");
+    const projectModalTitle = document.getElementById("donationProjectModalTitle");
+    const projectModalBody = document.getElementById("donationProjectModalBody");
+    const filterForm = document.getElementById("donationFilterForm");
+    const filterResetButton = document.getElementById("donationFilterReset");
+    const filterFields = {
+        dateFrom: document.getElementById("donationDateFrom"),
+        dateTo: document.getElementById("donationDateTo"),
+        project: document.getElementById("donationProjectFilter"),
+        minAmount: document.getElementById("donationMinAmount"),
+        maxAmount: document.getElementById("donationMaxAmount")
     };
+    if (!tbody) return;
 
     let donationCache = [];
 
@@ -1064,48 +1197,115 @@ async function initUserDonationsPage() {
         messageBox.textContent = text;
     };
 
-    const resetDonationForm = () => {
-        donationForm?.reset();
-        donationFields.id.value = "";
+    const getProjectProgress = (status) => {
+        const progressByStatus = {
+            planned: 15,
+            active: 60,
+            completed: 100,
+            on_hold: 40
+        };
+        return progressByStatus[status] || 25;
     };
 
-    const fillDonationForm = (item) => {
-        donationFields.id.value = item.id;
-        donationFields.date.value = normalizeDateValue(item.date);
-        donationFields.category.value = item.category || "";
-        donationFields.source.value = item.source || "";
-        donationFields.method.value = item.payment_method || "";
-        donationFields.amount.value = item.amount ?? "";
-        donationFields.description.value = item.description || "";
-        donationFields.source.focus();
+    const populateProjectFilter = async () => {
+        if (!filterFields.project) return;
+
+        try {
+            const data = await apiFetchJson("/user/projects");
+            const projects = data.projects || [];
+            const currentValue = filterFields.project.value;
+            filterFields.project.innerHTML = [
+                '<option value="">All projects</option>',
+                ...projects.map((project) => `<option value="${project.id}">${escapeHtml(project.project_name)}</option>`)
+            ].join("");
+            filterFields.project.value = currentValue;
+        } catch (error) {
+            console.error("Project filter load error:", error);
+        }
+    };
+
+    const buildDonationQuery = () => {
+        const params = new URLSearchParams({
+            type: "income",
+            projectLinked: "true",
+            userId: String(getUserId())
+        });
+
+        const addParam = (key, value) => {
+            if (value !== undefined && value !== null && String(value).trim() !== "") {
+                params.set(key, String(value).trim());
+            }
+        };
+
+        addParam("dateFrom", filterFields.dateFrom?.value);
+        addParam("dateTo", filterFields.dateTo?.value);
+        addParam("projectId", filterFields.project?.value);
+        addParam("minAmount", filterFields.minAmount?.value);
+        addParam("maxAmount", filterFields.maxAmount?.value);
+
+        return params.toString();
     };
 
     const renderDonationRows = (donations) => {
         if (!donations.length) {
-            tbody.innerHTML = "<tr><td colspan='8'>No donation records yet</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='6'>No donation records yet</td></tr>";
             return;
         }
 
         tbody.innerHTML = donations.map((item) => `
             <tr>
-                <td>${item.id}</td>
-                <td>${formatDate(item.date)}</td>
-                <td>${escapeHtml(item.category || "-")}</td>
-                <td>${escapeHtml(item.source || "-")}</td>
-                <td>${escapeHtml(formatPaymentMethod(item.payment_method))}</td>
+                <td>#${escapeHtml(item.id)}</td>
+                <td>
+                    <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(item.project_name || "General NGO Fund")}</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);margin-top:3px;">${escapeHtml(item.project_focus_area || item.category || "Donation")}</div>
+                </td>
                 <td class="amount-income">${formatCurrency(item.amount)}</td>
-                <td>${escapeHtml(item.description || "-")}</td>
+                <td>${formatDate(item.date)}</td>
+                <td>${escapeHtml(formatPaymentMethod(item.payment_method))}</td>
                 <td>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button type="button" class="btn-filter" data-action="edit-income" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;">Edit</button>
-                        <button type="button" class="btn-filter" data-action="delete-income" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--danger);">Delete</button>
+                        <button type="button" class="btn-filter" data-action="view-project" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;">
+                            <i class="bi bi-eye me-1"></i>Project
+                        </button>
+                        <button type="button" class="btn-filter" data-action="download-receipt" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--primary);">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>Download Receipt
+                        </button>
                     </div>
                 </td>
             </tr>
         `).join("");
     };
 
-    const renderDonationChart = (donations) => {
+    const getWeekKey = (dateValue) => {
+        const date = new Date(`${normalizeDateValue(dateValue)}T00:00:00`);
+        const firstDay = new Date(date.getFullYear(), 0, 1);
+        const dayOffset = Math.floor((date - firstDay) / 86400000);
+        const weekNumber = Math.ceil((dayOffset + firstDay.getDay() + 1) / 7);
+        return `${date.getFullYear()} W${String(weekNumber).padStart(2, "0")}`;
+    };
+
+    const getLatestDonationDate = (donations) => {
+        const dates = donations.map((item) => normalizeDateValue(item.date)).filter(Boolean).sort();
+        return dates[dates.length - 1] || new Date().toISOString().slice(0, 10);
+    };
+
+    const setupPeriodPickers = (donations) => {
+        const latestDate = getLatestDonationDate(donations);
+        if (donationMonthPicker && !donationMonthPicker.value) {
+            donationMonthPicker.value = latestDate.slice(0, 7);
+        }
+        if (donationYearPicker && !donationYearPicker.value) {
+            donationYearPicker.value = latestDate.slice(0, 4);
+        }
+    };
+
+    const syncPeriodPickerVisibility = () => {
+        const range = donationRangeSelect?.value || "monthly";
+        if (donationMonthPicker) donationMonthPicker.style.display = range === "monthly" ? "block" : "none";
+        if (donationYearPicker) donationYearPicker.style.display = range === "yearly" ? "block" : "none";
+    };
+
+    const renderDonationChart = (donations, range = "monthly") => {
         if (!donationChartCanvas || typeof Chart === "undefined") return;
 
         if (!donations.length) {
@@ -1114,11 +1314,37 @@ async function initUserDonationsPage() {
             return;
         }
 
-        const grouped = donations
+        setupPeriodPickers(donations);
+        syncPeriodPickerVisibility();
+
+        const selectedMonth = donationMonthPicker?.value || getLatestDonationDate(donations).slice(0, 7);
+        const selectedYear = donationYearPicker?.value || getLatestDonationDate(donations).slice(0, 4);
+        const chartDonations = donations.filter((item) => {
+            const normalizedDate = normalizeDateValue(item.date);
+            if (range === "monthly") return normalizedDate.startsWith(selectedMonth);
+            if (range === "yearly") return normalizedDate.startsWith(selectedYear);
+            return true;
+        });
+
+        if (!chartDonations.length) {
+            destroyChart(donationTrendChart);
+            if (donationChartEmpty) donationChartEmpty.style.display = "block";
+            return;
+        }
+
+        const grouped = chartDonations
             .slice()
             .sort((a, b) => new Date(a.date) - new Date(b.date))
             .reduce((map, item) => {
-                const key = normalizeDateValue(item.date);
+                const normalizedDate = normalizeDateValue(item.date);
+                let key = formatDate(normalizedDate);
+                if (range === "weekly") key = getWeekKey(item.date);
+                if (range === "yearly") {
+                    key = new Date(`${normalizedDate}T00:00:00`).toLocaleDateString("en-GB", {
+                        month: "short",
+                        year: "numeric"
+                    });
+                }
                 map[key] = (map[key] || 0) + Number(item.amount || 0);
                 return map;
             }, {});
@@ -1129,18 +1355,16 @@ async function initUserDonationsPage() {
         if (donationChartEmpty) donationChartEmpty.style.display = "none";
         destroyChart(donationTrendChart);
         donationTrendChart = new Chart(donationChartCanvas, {
-            type: "line",
+            type: "bar",
             data: {
-                labels: labels.map((label) => formatDate(label)),
+                labels,
                 datasets: [{
-                    label: "Donation amount",
+                    label: "Amount donated",
                     data: values,
                     borderColor: "#0f6e4d",
-                    backgroundColor: "rgba(15,110,77,0.14)",
-                    fill: true,
-                    tension: 0.35,
-                    pointRadius: 4,
-                    pointHoverRadius: 5
+                    backgroundColor: "rgba(15,110,77,0.72)",
+                    borderRadius: 8,
+                    borderSkipped: false
                 }]
             },
             options: {
@@ -1161,102 +1385,226 @@ async function initUserDonationsPage() {
         });
     };
 
-    const loadDonationData = async () => {
-        const data = await apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`);
-        const donations = data.transactions || [];
-        donationCache = donations;
-        const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-        const average = donations.length ? total / donations.length : 0;
+    const renderCategoryChart = (donations) => {
+        if (!donationCategoryCanvas || typeof Chart === "undefined") return;
 
-        setText("donationTotal", formatCurrency(total));
-        setText("donationCount", String(donations.length));
-        setText("donationAverage", formatCurrency(average));
-        renderDonationRows(donations);
-        renderDonationChart(donations);
-        return donations;
-    };
-
-    tbody.addEventListener("click", async (event) => {
-        const actionButton = event.target.closest("[data-action]");
-        if (!actionButton) return;
-
-        const item = donationCache.find((entry) => String(entry.id) === String(actionButton.dataset.id));
-        if (!item) return;
-
-        if (actionButton.dataset.action === "edit-income") {
-            fillDonationForm(item);
-            setMessage(`Editing income record #${item.id}`, "info");
+        if (!donations.length) {
+            destroyChart(donationCategoryChart);
+            if (donationCategoryChartEmpty) donationCategoryChartEmpty.style.display = "block";
             return;
         }
 
-        if (actionButton.dataset.action === "delete-income") {
-            if (!window.confirm(`Delete income record #${item.id}?`)) return;
-            try {
-                await apiFetchJson(`/user/income/${item.id}?userId=${getUserId()}`, { method: "DELETE" });
-                setMessage(`Income record #${item.id} deleted successfully.`, "success");
-                await loadDonationData();
-                resetDonationForm();
-            } catch (error) {
-                setMessage(error.message || "Failed to delete income record.", "error");
+        const grouped = donations.reduce((map, item) => {
+            const key = item.project_focus_area || item.category || "General";
+            map[key] = (map[key] || 0) + Number(item.amount || 0);
+            return map;
+        }, {});
+        const labels = Object.keys(grouped);
+        const values = labels.map((label) => grouped[label]);
+
+        if (donationCategoryChartEmpty) donationCategoryChartEmpty.style.display = "none";
+        destroyChart(donationCategoryChart);
+        donationCategoryChart = new Chart(donationCategoryCanvas, {
+            type: "doughnut",
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: ["#1a56db", "#0f6e4d", "#d97706", "#10b981", "#7c3aed", "#0891b2"],
+                    borderColor: "var(--surface)",
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "62%",
+                plugins: {
+                    legend: { position: "bottom", labels: { usePointStyle: true, pointStyleWidth: 10 } },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.label}: ${formatCurrency(context.raw)}`
+                        }
+                    }
+                }
             }
+        });
+    };
+
+    const showProjectProgress = (item) => {
+        if (!projectModalElement || !projectModalBody || !projectModalTitle || typeof bootstrap === "undefined") return;
+
+        const projectName = item.project_name || "General NGO Fund";
+        const status = item.project_status || "active";
+        const progress = getProjectProgress(status);
+        projectModalTitle.textContent = projectName;
+        projectModalBody.innerHTML = `
+            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;">
+                <div style="width:44px;height:44px;border-radius:12px;background:rgba(26,86,219,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:1.35rem;">
+                    <i class="bi bi-folder2-open"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(projectName)}</div>
+                    <div style="color:var(--text-muted);font-size:0.84rem;margin-top:3px;">${escapeHtml(item.project_focus_area || "General")} project</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);">
+                    <div style="font-size:0.74rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Status</div>
+                    <div style="margin-top:4px;font-weight:700;color:var(--text-primary);">${escapeHtml(formatProjectStatus(status))}</div>
+                </div>
+                <div style="padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);">
+                    <div style="font-size:0.74rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Budget</div>
+                    <div style="margin-top:4px;font-weight:700;color:var(--text-primary);">${formatCurrency(item.project_budget || 0)}</div>
+                </div>
+            </div>
+            <div style="margin-bottom:8px;display:flex;justify-content:space-between;color:var(--text-secondary);font-size:0.86rem;font-weight:700;">
+                <span>Project Progress</span>
+                <span>${progress}%</span>
+            </div>
+            <div style="height:14px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;">
+                <div style="height:100%;width:${progress}%;background:linear-gradient(90deg,var(--accent),var(--primary));"></div>
+            </div>
+            <div style="margin-top:14px;color:var(--text-muted);font-size:0.84rem;line-height:1.7;">
+                ${item.project_start_date ? `Started ${formatDate(item.project_start_date)}. ` : ""}
+                ${item.project_end_date ? `Target end date ${formatDate(item.project_end_date)}.` : "End date not added yet."}
+            </div>
+        `;
+
+        bootstrap.Modal.getOrCreateInstance(projectModalElement).show();
+    };
+
+    const downloadReceipt = (item) => {
+        const jsPdf = window.jspdf?.jsPDF;
+        if (!jsPdf) {
+            setMessage("Receipt PDF library is still loading. Please try again in a moment.", "error");
+            return;
+        }
+
+        const user = loadUserSession() || {};
+        const doc = new jsPdf();
+        const receiptNo = `NID-${String(item.id).padStart(5, "0")}`;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("Nidigo Donation Receipt", 20, 24);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Receipt No: ${receiptNo}`, 20, 36);
+        doc.text(`Generated: ${formatDate(new Date().toISOString().slice(0, 10))}`, 20, 44);
+
+        doc.setDrawColor(15, 110, 77);
+        doc.line(20, 52, 190, 52);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Donor Details", 20, 66);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Name: ${user.name || "Donor User"}`, 20, 76);
+        doc.text(`Email: ${user.email || "Not available"}`, 20, 84);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Donation Details", 20, 102);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Donation ID: #${item.id}`, 20, 112);
+        doc.text(`Project: ${item.project_name || "General NGO Fund"}`, 20, 120);
+        doc.text(`Category: ${item.category || "Donation"}`, 20, 128);
+        doc.text(`Donation Date: ${formatDate(item.date)}`, 20, 136);
+        doc.text(`Payment Method: ${formatPaymentMethod(item.payment_method)}`, 20, 144);
+        doc.text(`Amount Donated: ${formatCurrency(item.amount)}`, 20, 152);
+
+        if (item.description) {
+            doc.text("Note:", 20, 168);
+            doc.text(doc.splitTextToSize(String(item.description), 160), 20, 176);
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Thank you for supporting Nidigo.", 20, 260);
+        doc.save(`${receiptNo}-receipt.pdf`);
+    };
+
+    const loadDonationData = async () => {
+        const data = await apiFetchJson(`/user/transactions?${buildDonationQuery()}`);
+        const donations = data.transactions || [];
+        donationCache = donations;
+        const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const supportedProjects = new Set(donations.map((item) => item.project_id || item.project_name).filter(Boolean));
+        const highestDonation = donations.reduce((max, item) => Math.max(max, Number(item.amount || 0)), 0);
+        const latestDonation = donations[0] || null;
+
+        setText("donationTotal", formatCurrency(total));
+        setText("donationProjects", String(supportedProjects.size));
+        setText("donationLastDate", latestDonation ? formatDate(latestDonation.date) : "-");
+        setText("donationHighest", formatCurrency(highestDonation));
+        renderDonationRows(donations);
+        renderDonationChart(donations, donationRangeSelect?.value || "monthly");
+        renderCategoryChart(donations);
+        return donations;
+    };
+
+    tbody.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+        if (!button) return;
+
+        const item = donationCache.find((entry) => String(entry.id) === String(button.dataset.id));
+        if (!item) return;
+
+        if (button.dataset.action === "view-project") {
+            showProjectProgress(item);
+        }
+
+        if (button.dataset.action === "download-receipt") {
+            downloadReceipt(item);
         }
     });
 
-    donationForm?.addEventListener("submit", async (event) => {
+    donationRangeSelect?.addEventListener("change", () => {
+        renderDonationChart(donationCache, donationRangeSelect.value);
+    });
+
+    donationMonthPicker?.addEventListener("change", () => {
+        renderDonationChart(donationCache, donationRangeSelect?.value || "monthly");
+    });
+
+    donationYearPicker?.addEventListener("change", () => {
+        renderDonationChart(donationCache, donationRangeSelect?.value || "yearly");
+    });
+
+    filterForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
-
-        const payload = {
-            userId: getUserId(),
-            date: donationFields.date.value,
-            category: donationFields.category.value,
-            source: donationFields.source.value.trim(),
-            payment_method: donationFields.method.value || null,
-            amount: donationFields.amount.value,
-            description: donationFields.description.value.trim()
-        };
-
         try {
-            if (donationFields.id.value) {
-                await apiFetchJson(`/user/income/${donationFields.id.value}?userId=${getUserId()}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                setMessage(`Income record #${donationFields.id.value} updated successfully.`, "success");
-            } else {
-                await apiFetchJson("/user/income", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                setMessage("New income record added successfully.", "success");
-            }
-
-            resetDonationForm();
             await loadDonationData();
+            setMessage("");
         } catch (error) {
-            setMessage(error.message || "Failed to save donation entry.", "error");
+            console.error("Donation filter error:", error);
+            tbody.innerHTML = "<tr><td colspan='6'>Unable to apply donation filters</td></tr>";
+            setMessage(error.message || "Unable to apply donation filters.", "error");
         }
     });
 
-    document.getElementById("donationCancelBtn")?.addEventListener("click", () => {
-        resetDonationForm();
-        setMessage("");
+    filterResetButton?.addEventListener("click", async () => {
+        filterForm?.reset();
+        try {
+            await loadDonationData();
+            setMessage("");
+        } catch (error) {
+            setMessage(error.message || "Unable to reset donation filters.", "error");
+        }
     });
 
     try {
-        const donations = await loadDonationData();
+        await populateProjectFilter();
+        await loadDonationData();
 
         exportButton?.addEventListener("click", () => {
-            const rows = [["Record ID", "Date", "Category", "Source", "Payment Method", "Amount", "Description"]];
-            donations.forEach((item) => {
+            const rows = [["Donation ID", "Project Name", "Amount Donated", "Donation Date", "Payment Method", "Category", "Note"]];
+            donationCache.forEach((item) => {
                 rows.push([
                     item.id,
-                    normalizeDateValue(item.date),
-                    item.category || "",
-                    item.source || "",
-                    formatPaymentMethod(item.payment_method),
+                    item.project_name || "General NGO Fund",
                     item.amount,
+                    normalizeDateValue(item.date),
+                    formatPaymentMethod(item.payment_method),
+                    item.category || "",
                     item.description || ""
                 ]);
             });
@@ -1264,7 +1612,7 @@ async function initUserDonationsPage() {
         });
     } catch (error) {
         console.error("Donation history error:", error);
-        tbody.innerHTML = "<tr><td colspan='8'>Unable to load donation history</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='6'>Unable to load donation history</td></tr>";
         setMessage(error.message || "Unable to load donation history.", "error");
     }
 }
@@ -1539,10 +1887,32 @@ async function initUserCalendarPage() {
     }
 
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const normalizeProjectDate = (value) => {
+        const normalized = normalizeDateValue(value);
+        return normalized || "";
+    };
+
+    const getProjectStartsForDate = (dateStr) =>
+        projects.filter((project) => normalizeProjectDate(project.start_date) === dateStr);
+
+    const getProjectEndsForDate = (dateStr) =>
+        projects.filter((project) => normalizeProjectDate(project.end_date) === dateStr);
 
     const updateStats = (year, month) => {
         const monthDonations = donations.filter((item) => {
             const date = new Date(`${normalizeDateValue(item.date)}T00:00:00`);
+            return date.getFullYear() === year && date.getMonth() === month;
+        });
+        const monthProjectStarts = projects.filter((project) => {
+            const startDate = normalizeProjectDate(project.start_date);
+            if (!startDate) return false;
+            const date = new Date(`${startDate}T00:00:00`);
+            return date.getFullYear() === year && date.getMonth() === month;
+        });
+        const monthProjectEnds = projects.filter((project) => {
+            const endDate = normalizeProjectDate(project.end_date);
+            if (!endDate) return false;
+            const date = new Date(`${endDate}T00:00:00`);
             return date.getFullYear() === year && date.getMonth() === month;
         });
 
@@ -1550,11 +1920,15 @@ async function initUserCalendarPage() {
         setText("calMonthInc", formatCurrency(monthTotal));
         setText("calTotalDonations", String(monthDonations.length));
         setText("calProjectsSupported", String(projects.length));
+        setText("calProjectStarts", String(monthProjectStarts.length));
+        setText("calProjectEnds", String(monthProjectEnds.length));
     };
 
     const showDayDetails = (date) => {
         const dateStr = normalizeDateValue(date);
         const dayDonations = donations.filter((item) => normalizeDateValue(item.date) === dateStr);
+        const projectStarts = getProjectStartsForDate(dateStr);
+        const projectEnds = getProjectEndsForDate(dateStr);
 
         if (detailTitle) {
             detailTitle.innerHTML = `<i class="bi bi-calendar3"></i> ${new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
@@ -1567,23 +1941,58 @@ async function initUserCalendarPage() {
 
         if (!detailBox) return;
 
-        if (!dayDonations.length) {
-            detailBox.innerHTML = '<div class="cal-detail-empty">No donations recorded on this day.</div>';
+        if (!dayDonations.length && !projectStarts.length && !projectEnds.length) {
+            detailBox.innerHTML = '<div class="cal-detail-empty">No donations or project milestones recorded on this day.</div>';
             return;
         }
 
-        detailBox.innerHTML = dayDonations.map((donation) => `
+        const donationSection = dayDonations.length ? `
+            <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Donations</div>
+            ${dayDonations.map((donation) => `
             <div class="cal-txn-row">
               <div class="cal-txn-icon inc">
                 <i class="bi bi-heart-fill"></i>
               </div>
               <div class="cal-txn-info">
                 <div class="cal-txn-name">${escapeHtml(donation.source || "Donation")}</div>
-                <div class="cal-txn-cat">${escapeHtml(donation.category || "Donation")} ${donation.payment_method ? `• ${escapeHtml(formatPaymentMethod(donation.payment_method))}` : ""}</div>
+                <div class="cal-txn-cat">${escapeHtml(donation.category || "Donation")}${donation.payment_method ? ` • ${escapeHtml(formatPaymentMethod(donation.payment_method))}` : ""}${donation.description ? ` • ${escapeHtml(donation.description)}` : ""}</div>
               </div>
               <div class="cal-txn-amt p">${escapeHtml(formatCurrency(donation.amount))}</div>
             </div>
-        `).join("");
+            `).join("")}
+        ` : "";
+
+        const startSection = projectStarts.length ? `
+            <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin:${dayDonations.length ? "16px" : "0"} 0 10px 0;">Project Starts</div>
+            ${projectStarts.map((project) => `
+                <div style="padding:12px 14px;border:1px solid rgba(26,86,219,0.16);background:rgba(26,86,219,0.05);border-radius:14px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(project.project_name || "Project")}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `• ${escapeHtml(project.focus_area)}` : ""}</div>
+                        </div>
+                        <span style="background:rgba(26,86,219,0.10);color:var(--accent);border-radius:999px;padding:4px 9px;font-size:0.74rem;font-weight:700;">Start</span>
+                    </div>
+                </div>
+            `).join("")}
+        ` : "";
+
+        const endSection = projectEnds.length ? `
+            <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin:${(dayDonations.length || projectStarts.length) ? "16px" : "0"} 0 10px 0;">Project Ends</div>
+            ${projectEnds.map((project) => `
+                <div style="padding:12px 14px;border:1px solid rgba(217,119,6,0.16);background:rgba(217,119,6,0.05);border-radius:14px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(project.project_name || "Project")}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `• ${escapeHtml(project.focus_area)}` : ""}</div>
+                        </div>
+                        <span style="background:rgba(217,119,6,0.10);color:var(--gold);border-radius:999px;padding:4px 9px;font-size:0.74rem;font-weight:700;">End</span>
+                    </div>
+                </div>
+            `).join("")}
+        ` : "";
+
+        detailBox.innerHTML = `${donationSection}${startSection}${endSection}`;
     };
 
     const createDayCell = (day, isOtherMonth, dateObj) => {
@@ -1593,6 +2002,8 @@ async function initUserCalendarPage() {
 
         const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
         const dayDonations = donations.filter((item) => normalizeDateValue(item.date) === dateStr);
+        const projectStarts = getProjectStartsForDate(dateStr);
+        const projectEnds = getProjectEndsForDate(dateStr);
         const todayStr = normalizeDateValue(new Date());
 
         if (dateStr === todayStr) cell.classList.add("today");
@@ -1618,6 +2029,31 @@ async function initUserCalendarPage() {
             dotWrap.appendChild(count);
 
             cell.appendChild(dotWrap);
+        }
+
+        if (projectStarts.length || projectEnds.length) {
+            const markerWrap = document.createElement("div");
+            markerWrap.style.display = "flex";
+            markerWrap.style.justifyContent = "center";
+            markerWrap.style.gap = "4px";
+            markerWrap.style.marginTop = dayDonations.length ? "4px" : "8px";
+            markerWrap.style.flexWrap = "wrap";
+
+            if (projectStarts.length) {
+                const startTag = document.createElement("span");
+                startTag.textContent = "S";
+                startTag.style.cssText = "min-width:18px;height:18px;border-radius:999px;background:rgba(26,86,219,0.10);border:1px solid rgba(26,86,219,0.25);display:flex;align-items:center;justify-content:center;font-size:0.66rem;color:var(--accent);font-weight:700;";
+                markerWrap.appendChild(startTag);
+            }
+
+            if (projectEnds.length) {
+                const endTag = document.createElement("span");
+                endTag.textContent = "E";
+                endTag.style.cssText = "min-width:18px;height:18px;border-radius:999px;background:rgba(217,119,6,0.10);border:1px solid rgba(217,119,6,0.25);display:flex;align-items:center;justify-content:center;font-size:0.66rem;color:var(--gold);font-weight:700;";
+                markerWrap.appendChild(endTag);
+            }
+
+            cell.appendChild(markerWrap);
         }
 
         cell.addEventListener("click", () => {
@@ -1900,22 +2336,11 @@ function formatProjectStatus(value) {
 }
 
 async function initUserProjectsPage() {
-    const ngoForm = document.getElementById("ngoForm");
     const projectForm = document.getElementById("projectForm");
     const ngoList = document.getElementById("ngoProjectList");
-    const ngoSelect = document.getElementById("projectNgo");
     const messageBox = document.getElementById("projectMessage");
 
-    if (!ngoForm || !projectForm || !ngoList || !ngoSelect) return;
-
-    const ngoFields = {
-        id: document.getElementById("ngoId"),
-        name: document.getElementById("ngoName"),
-        registration: document.getElementById("ngoRegistration"),
-        email: document.getElementById("ngoEmail"),
-        location: document.getElementById("ngoLocation"),
-        description: document.getElementById("ngoDescription")
-    };
+    if (!projectForm || !ngoList) return;
 
     const projectFields = {
         id: document.getElementById("projectId"),
@@ -1932,124 +2357,67 @@ async function initUserProjectsPage() {
 
     const setMessage = (text, tone = "info") => {
         if (!messageBox) return;
-        if (!text) {
-            messageBox.style.display = "none";
-            messageBox.textContent = "";
-            return;
-        }
-
+        if (!text) { messageBox.style.display = "none"; messageBox.textContent = ""; return; }
         const styles = {
             info: "background:rgba(26,86,219,0.08);color:#1a56db;border:1px solid rgba(26,86,219,0.18);",
             success: "background:rgba(15,110,77,0.08);color:var(--primary);border:1px solid rgba(15,110,77,0.18);",
             error: "background:rgba(220,38,38,0.08);color:var(--danger);border:1px solid rgba(220,38,38,0.18);"
         };
-
         messageBox.style.cssText = `display:block;margin-bottom:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;${styles[tone] || styles.info}`;
         messageBox.textContent = text;
-    };
-
-    const resetNgoForm = () => {
-        ngoForm.reset();
-        ngoFields.id.value = "";
     };
 
     const resetProjectForm = () => {
         projectForm.reset();
         projectFields.id.value = "";
         projectFields.status.value = "active";
-    };
-
-    const populateNgoOptions = (ngos) => {
-        const currentValue = projectFields.ngoId.value;
-        ngoSelect.innerHTML = `
-            <option value="">Choose NGO</option>
-            ${ngos.map((ngo) => `<option value="${ngo.id}">${escapeHtml(ngo.ngo_name)}</option>`).join("")}
-        `;
-        if (currentValue) {
-            ngoSelect.value = currentValue;
+        if (ngoProjectCache.length && projectFields.ngoId) {
+            projectFields.ngoId.value = ngoProjectCache[0].id;
         }
     };
 
-    const renderNgoProjectList = (ngos) => {
-        setText("ngoCount", String(ngos.length));
-        setText("projectCount", String(ngos.reduce((sum, ngo) => sum + ngo.totals.projectCount, 0)));
-        setText("projectBudget", formatCurrency(ngos.reduce((sum, ngo) => sum + Number(ngo.totals.totalBudget || 0), 0)));
-
-        if (!ngos.length) {
-            ngoList.innerHTML = `
-                <div class="chart-card" style="background:var(--surface-2);border-style:dashed;">
-                    <div class="chart-title">No NGOs yet</div>
-                    <div class="chart-subtitle">Add your first NGO and then attach real projects to it.</div>
-                </div>
-            `;
+    const renderProjectList = (ngos) => {
+        const allProjects = ngos.reduce((sum, ngo) => sum + ngo.totals.projectCount, 0);
+        const totalBudget = ngos.reduce((sum, ngo) => sum + Number(ngo.totals.totalBudget || 0), 0);
+        setText("projectCount", String(allProjects));
+        setText("projectBudget", formatCurrency(totalBudget));
+        const projects = ngos.flatMap((ngo) => (ngo.projects || []).map((p) => ({ ...p, ngo_id: ngo.id })));
+        if (!projects.length) {
+            ngoList.innerHTML = `<div class="chart-card" style="background:var(--surface-2);border-style:dashed;"><div class="chart-title">No projects yet</div><div class="chart-subtitle">Add your first project using the form above.</div></div>`;
             return;
         }
-
-        ngoList.innerHTML = ngos.map((ngo, index) => `
-            <details class="chart-card" style="margin-bottom:16px;overflow:hidden;" ${index === 0 ? "open" : ""}>
-                <summary style="list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                            <div style="width:48px;height:48px;border-radius:14px;background:rgba(26,86,219,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:1.25rem;">
-                                <i class="bi bi-buildings"></i>
-                            </div>
-                            <div>
-                                <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">${escapeHtml(ngo.ngo_name)}</div>
-                                <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(ngo.location || "Location not added")} • ${ngo.totals.projectCount} project(s)</div>
-                            </div>
-                        </div>
-                        <div style="margin-top:12px;color:var(--text-secondary);font-size:0.88rem;line-height:1.7;">${escapeHtml(ngo.description || "No NGO description added yet.")}</div>
-                        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
-                            <span style="background:rgba(15,110,77,0.1);color:var(--primary);border-radius:999px;padding:5px 10px;font-size:0.75rem;font-weight:700;">Budget ${formatCurrency(ngo.totals.totalBudget)}</span>
-                            ${ngo.registration_no ? `<span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.75rem;">${escapeHtml(ngo.registration_no)}</span>` : ""}
-                            ${ngo.contact_email ? `<span style="background:var(--surface-2);color:var(--text-muted);border-radius:999px;padding:5px 10px;font-size:0.75rem;">${escapeHtml(ngo.contact_email)}</span>` : ""}
-                        </div>
+        ngoList.innerHTML = projects.map((project) => `
+            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:220px;">
+                        <div style="font-weight:700;color:var(--text-primary);font-size:0.96rem;">${escapeHtml(project.project_name)}</div>
+                        <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.focus_area || "Focus area not added")} \u2022 ${formatProjectStatus(project.status)}</div>
+                        <div style="margin-top:10px;color:var(--text-secondary);font-size:0.87rem;line-height:1.65;">${escapeHtml(project.description || "No project description added yet.")}</div>
                     </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-                        <button type="button" class="btn-filter" data-action="edit-ngo" data-ngo-id="${ngo.id}">Edit NGO</button>
-                        <button type="button" class="btn-filter" data-action="add-project" data-ngo-id="${ngo.id}">Add Project</button>
-                        <button type="button" class="btn-filter" data-action="delete-ngo" data-ngo-id="${ngo.id}" style="background:var(--danger);">Delete NGO</button>
+                    <div style="text-align:right;min-width:180px;">
+                        <div style="font-weight:700;color:var(--gold);">${formatCurrency(project.budget)}</div>
+                        <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${project.start_date ? formatDate(project.start_date) : "No start"}${project.end_date ? ` to ${formatDate(project.end_date)}` : ""}</div>
+                        ${project.project_code ? `<div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">Code: ${escapeHtml(project.project_code)}</div>` : ""}
                     </div>
-                </summary>
-                <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:18px;">
-                    ${ngo.projects.length ? ngo.projects.map((project) => `
-                        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:12px;">
-                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-                                <div style="flex:1;min-width:220px;">
-                                    <div style="font-weight:700;color:var(--text-primary);font-size:0.96rem;">${escapeHtml(project.project_name)}</div>
-                                    <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.focus_area || "Focus area not added")} • ${formatProjectStatus(project.status)}</div>
-                                    <div style="margin-top:10px;color:var(--text-secondary);font-size:0.87rem;line-height:1.65;">${escapeHtml(project.description || "No project description added yet.")}</div>
-                                </div>
-                                <div style="text-align:right;min-width:180px;">
-                                    <div style="font-weight:700;color:var(--gold);">${formatCurrency(project.budget)}</div>
-                                    <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${project.start_date ? formatDate(project.start_date) : "No start"}${project.end_date ? ` to ${formatDate(project.end_date)}` : ""}</div>
-                                    ${project.project_code ? `<div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">Code: ${escapeHtml(project.project_code)}</div>` : ""}
-                                </div>
-                            </div>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-                                <button type="button" class="btn-filter" data-action="edit-project" data-project-id="${project.id}">Edit Project</button>
-                                <button type="button" class="btn-filter" data-action="delete-project" data-project-id="${project.id}" style="background:var(--danger);">Delete Project</button>
-                            </div>
-                        </div>
-                    `).join("") : `
-                        <div style="padding:16px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:0.88rem;">
-                            No projects have been added under this NGO yet.
-                        </div>
-                    `}
                 </div>
-            </details>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+                    <button type="button" class="btn-filter" data-action="edit-project" data-project-id="${project.id}">Edit Project</button>
+                    <button type="button" class="btn-filter" data-action="delete-project" data-project-id="${project.id}" style="background:var(--danger);">Delete Project</button>
+                </div>
+            </div>
         `).join("");
     };
 
     const fetchData = async () => {
         const data = await apiFetchJson(`/user/ngos?userId=${getUserId()}`);
         ngoProjectCache = data.ngos || [];
-        populateNgoOptions(ngoProjectCache);
-        renderNgoProjectList(ngoProjectCache);
+        if (ngoProjectCache.length && projectFields.ngoId) {
+            projectFields.ngoId.value = ngoProjectCache[0].id;
+        }
+        renderProjectList(ngoProjectCache);
         return ngoProjectCache;
     };
 
-    const findNgo = (ngoId) => ngoProjectCache.find((item) => String(item.id) === String(ngoId));
     const findProject = (projectId) => {
         for (const ngo of ngoProjectCache) {
             const project = (ngo.projects || []).find((item) => String(item.id) === String(projectId));
@@ -2061,58 +2429,24 @@ async function initUserProjectsPage() {
     ngoList.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-action]");
         if (!button) return;
-
         const action = button.dataset.action;
-        const ngoId = button.dataset.ngoId;
         const projectId = button.dataset.projectId;
-
-        if (action === "edit-ngo") {
-            const ngo = findNgo(ngoId);
-            if (!ngo) return;
-            ngoFields.id.value = ngo.id;
-            ngoFields.name.value = ngo.ngo_name || "";
-            ngoFields.registration.value = ngo.registration_no || "";
-            ngoFields.email.value = ngo.contact_email || "";
-            ngoFields.location.value = ngo.location || "";
-            ngoFields.description.value = ngo.description || "";
-            ngoFields.name.focus();
-            return;
-        }
-
-        if (action === "add-project") {
-            resetProjectForm();
-            projectFields.ngoId.value = ngoId || "";
-            projectFields.name.focus();
-            return;
-        }
-
-        if (action === "delete-ngo") {
-            if (!window.confirm("Delete this NGO? This works only if all projects under it are removed first.")) return;
-            try {
-                await apiFetchJson(`/user/ngos/${ngoId}?userId=${getUserId()}`, { method: "DELETE" });
-                setMessage("NGO deleted successfully.", "success");
-                await fetchData();
-                resetNgoForm();
-            } catch (error) {
-                setMessage(error.message || "Failed to delete NGO.", "error");
-            }
-            return;
-        }
 
         if (action === "edit-project") {
             const project = findProject(projectId);
             if (!project) return;
             projectFields.id.value = project.id;
-            projectFields.ngoId.value = project.ngo_id || "";
+            projectFields.ngoId.value = project.ngo_id || (ngoProjectCache.length ? ngoProjectCache[0].id : "");
             projectFields.name.value = project.project_name || "";
             projectFields.code.value = project.project_code || "";
             projectFields.focusArea.value = project.focus_area || "";
-            projectFields.budget.value = project.budget ?? 0;
+            projectFields.budget.value = project.budget != null ? project.budget : 0;
             projectFields.startDate.value = normalizeDateValue(project.start_date);
             projectFields.endDate.value = normalizeDateValue(project.end_date);
             projectFields.status.value = project.status || "active";
             projectFields.description.value = project.description || "";
             projectFields.name.focus();
+            window.scrollTo({ top: 0, behavior: "smooth" });
             return;
         }
 
@@ -2129,45 +2463,15 @@ async function initUserProjectsPage() {
         }
     });
 
-    ngoForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const payload = {
-            userId: getUserId(),
-            ngo_name: ngoFields.name.value.trim(),
-            registration_no: ngoFields.registration.value.trim(),
-            contact_email: ngoFields.email.value.trim(),
-            location: ngoFields.location.value.trim(),
-            description: ngoFields.description.value.trim()
-        };
-
-        try {
-            if (ngoFields.id.value) {
-                await apiFetchJson(`/user/ngos/${ngoFields.id.value}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                setMessage("NGO updated successfully.", "success");
-            } else {
-                await apiFetchJson("/user/ngos", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                setMessage("NGO added successfully.", "success");
-            }
-
-            resetNgoForm();
-            await fetchData();
-        } catch (error) {
-            setMessage(error.message || "Failed to save NGO.", "error");
-        }
-    });
-
     projectForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const ngoId = (projectFields.ngoId && projectFields.ngoId.value) || (ngoProjectCache.length ? ngoProjectCache[0].id : "");
+        if (!ngoId) {
+            setMessage("No NGO found in the system. Please contact the admin.", "error");
+            return;
+        }
         const payload = {
-            ngo_id: projectFields.ngoId.value,
+            ngo_id: ngoId,
             project_name: projectFields.name.value.trim(),
             project_code: projectFields.code.value.trim(),
             focus_area: projectFields.focusArea.value.trim(),
@@ -2177,24 +2481,14 @@ async function initUserProjectsPage() {
             status: projectFields.status.value,
             description: projectFields.description.value.trim()
         };
-
         try {
             if (projectFields.id.value) {
-                await apiFetchJson(`/user/projects/${projectFields.id.value}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
+                await apiFetchJson(`/user/projects/${projectFields.id.value}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
                 setMessage("Project updated successfully.", "success");
             } else {
-                await apiFetchJson("/user/projects", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
+                await apiFetchJson("/user/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
                 setMessage("Project added successfully.", "success");
             }
-
             resetProjectForm();
             await fetchData();
         } catch (error) {
@@ -2202,15 +2496,14 @@ async function initUserProjectsPage() {
         }
     });
 
-    document.getElementById("ngoCancelBtn")?.addEventListener("click", resetNgoForm);
     document.getElementById("projectCancelBtn")?.addEventListener("click", resetProjectForm);
 
     try {
-        setMessage("Loading NGO and project data...", "info");
+        setMessage("Loading project data...", "info");
         await fetchData();
         setMessage("");
     } catch (error) {
-        setMessage(error.message || "Failed to load NGO and project data.", "error");
+        setMessage(error.message || "Failed to load project data.", "error");
     }
 }
 

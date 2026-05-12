@@ -27,11 +27,7 @@ function normalizeStatus(value) {
 
 router.get("/ngos", (req, res) => {
     try {
-        const userId = Number(req.query.userId);
-        if (!userId) {
-            return res.status(400).json({ success: false, message: "userId is required" });
-        }
-
+        // Single-NGO platform: return all NGOs regardless of user
         const rows = db.prepare(`
             SELECT
                 n.id AS ngo_id,
@@ -52,9 +48,8 @@ router.get("/ngos", (req, res) => {
                 p.status
             FROM ngos n
             LEFT JOIN projects p ON p.ngo_id = n.id
-            WHERE n.user_id = ?
             ORDER BY n.ngo_name ASC, p.created_at DESC, p.id DESC
-        `).all(userId);
+        `).all();
 
         const ngoMap = new Map();
 
@@ -300,6 +295,12 @@ router.post("/projects", (req, res) => {
         (err, result) => {
             if (err) {
                 console.log("Project Insert Error:", err);
+                if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                    return res.status(409).json({
+                        success: false,
+                        message: "A project with that code already exists. Use a different code or leave it blank."
+                    });
+                }
                 return res.status(500).json({
                     success: false,
                     message: "Failed to add project"
@@ -340,6 +341,12 @@ router.put("/projects/:id", (req, res) => {
         (err, result) => {
             if (err) {
                 console.log("Project Update Error:", err);
+                if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                    return res.status(409).json({
+                        success: false,
+                        message: "A project with that code already exists. Use a different code or leave it blank."
+                    });
+                }
                 return res.status(500).json({
                     success: false,
                     message: "Failed to update project"

@@ -17,13 +17,10 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Overview</div>
     <a href="user-dashboard.html" class="nav-link"><i class="bi bi-house"></i><span>Dashboard</span></a>
-    <div class="nav-section-label">Information</div>
-    <a href="user-projects.html" class="nav-link active"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
-    <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
-    <a href="user-calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
-    <div class="nav-section-label">My Account</div>
+    <a href="user-projects.html" class="nav-link active"><i class="bi bi-folder2-open"></i><span>Projects</span></a>
     <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-expenses.html" class="nav-link"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
+    <a href="user-transparency.html" class="nav-link"><i class="bi bi-megaphone"></i><span>NGO Updates</span></a>
+    <div class="nav-section-label">My Account</div>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer"><a href="index.html" class="nav-link btn-logout"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a></div>
@@ -44,24 +41,18 @@
 <main class="main-content">
   <div class="page-body">
     <div class="page-header">
-      <h2>NGO Project Management</h2>
-      <p>Create NGOs, assign multiple projects to the same NGO, and manage real project data from one place.</p>
+      <h2>Project Management</h2>
+      <p>Create and manage real project data from one place.</p>
     </div>
 
     <div class="row g-3 section-gap">
-      <div class="col-12 col-md-4">
-        <div class="stat-card income" style="padding:18px 20px">
-          <div class="card-label">Total NGOs</div>
-          <div class="card-value" id="ngoCount">0</div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-6">
         <div class="stat-card" style="padding:18px 20px;border-left:4px solid var(--accent)">
           <div class="card-label">Total Projects</div>
           <div class="card-value" id="projectCount" style="color:var(--accent)">0</div>
         </div>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-6">
         <div class="stat-card" style="padding:18px 20px;border-left:4px solid var(--gold)">
           <div class="card-label">Combined Budget</div>
           <div class="card-value" id="projectBudget" style="color:var(--gold)">Rs 0.00</div>
@@ -70,59 +61,20 @@
     </div>
 
     <div class="row g-3 section-gap">
-      <div class="col-12 col-xl-5">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">Add Or Edit NGO</div>
-              <div class="chart-subtitle">Each NGO can hold one or many projects.</div>
-            </div>
-          </div>
-          <form id="ngoForm" class="row g-3">
-            <input type="hidden" id="ngoId"/>
-            <div class="col-12">
-              <label class="form-label" for="ngoName">NGO Name</label>
-              <input type="text" id="ngoName" class="form-control" placeholder="Enter NGO name" required/>
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label" for="ngoRegistration">Registration No</label>
-              <input type="text" id="ngoRegistration" class="form-control" placeholder="Optional unique registration"/>
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label" for="ngoEmail">Contact Email</label>
-              <input type="email" id="ngoEmail" class="form-control" placeholder="ngo@example.org"/>
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="ngoLocation">Location</label>
-              <input type="text" id="ngoLocation" class="form-control" placeholder="City / Region"/>
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="ngoDescription">Description</label>
-              <textarea id="ngoDescription" class="form-control" rows="4" placeholder="Describe what this NGO works on"></textarea>
-            </div>
-            <div class="col-12 d-flex gap-2 flex-wrap">
-              <button type="submit" class="btn-submit-income"><i class="bi bi-building-add me-2"></i>Save NGO</button>
-              <button type="button" id="ngoCancelBtn" class="btn-reset">Clear</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div class="col-12 col-xl-7">
+      <div class="col-12">
         <div class="chart-card">
           <div class="chart-header">
             <div>
               <div class="chart-title">Add Or Edit Project</div>
-              <div class="chart-subtitle">Projects are grouped under the selected NGO.</div>
+              <div class="chart-subtitle">Add projects and manage their details here.</div>
             </div>
           </div>
           <form id="projectForm" class="row g-3">
             <input type="hidden" id="projectId"/>
+            <input type="hidden" id="projectNgo"/>
             <div class="col-12 col-md-6">
-              <label class="form-label" for="projectNgo">Select NGO</label>
-              <select id="projectNgo" class="form-select" required>
-                <option value="">Choose NGO</option>
-              </select>
+              <label class="form-label" for="projectName">Project Name</label>
+              <input type="text" id="projectName" class="form-control" placeholder="Enter project name" required/>
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="projectStatus">Status</label>
@@ -132,10 +84,6 @@
                 <option value="completed">Completed</option>
                 <option value="on_hold">On Hold</option>
               </select>
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label" for="projectName">Project Name</label>
-              <input type="text" id="projectName" class="form-control" placeholder="Enter project name" required/>
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="projectCode">Project Code</label>
@@ -173,8 +121,8 @@
     <div class="chart-card section-gap">
       <div class="chart-header">
         <div>
-          <div class="chart-title">NGOs And Their Projects</div>
-          <div class="chart-subtitle">Click an NGO card to expand all projects under it.</div>
+          <div class="chart-title">All Projects</div>
+          <div class="chart-subtitle">View and manage all projects below.</div>
         </div>
       </div>
       <div id="projectMessage" style="display:none;margin-bottom:16px;padding:12px 14px;border-radius:12px;font-size:0.9rem;"></div>
@@ -184,6 +132,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260420a"></script>
+<script src="js/script.js?v=20260512a"></script>
 </body>
 </html>

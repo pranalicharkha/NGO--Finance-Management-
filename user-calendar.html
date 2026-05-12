@@ -21,13 +21,10 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Overview</div>
     <a href="user-dashboard.html" class="nav-link"><i class="bi bi-house"></i><span>Dashboard</span></a>
-    <div class="nav-section-label">Information</div>
-    <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Our Projects</span></a>
-    <a href="user-transparency.html" class="nav-link"><i class="bi bi-pie-chart"></i><span>Transparency</span></a>
-    <a href="user-calendar.html" class="nav-link active"><i class="bi bi-calendar3"></i><span>Donation Calendar</span></a>
+    <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Projects</span></a>
+    <a href="user-donations.html" class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
+    <a href="user-transparency.html" class="nav-link"><i class="bi bi-megaphone"></i><span>NGO Updates</span></a>
     <div class="nav-section-label">My Account</div>
-    <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-expenses.html" class="nav-link"><i class="bi bi-wallet2"></i><span>My Expenses</span></a>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
   <div class="sidebar-footer">
@@ -69,6 +66,14 @@
             <div class="pill-label">Projects Supported</div>
             <div class="pill-val" id="calProjectsSupported">0</div>
           </div>
+          <div class="cal-stat-pill">
+            <div class="pill-label">Project Starts</div>
+            <div class="pill-val" id="calProjectStarts" style="color:var(--accent)">0</div>
+          </div>
+          <div class="cal-stat-pill">
+            <div class="pill-label">Project Ends</div>
+            <div class="pill-val" id="calProjectEnds" style="color:var(--gold)">0</div>
+          </div>
         </div>
 
         <div class="calendar-wrap">
@@ -99,6 +104,12 @@
               <div class="cal-dot income-dot"></div> Donation recorded
             </div>
             <div style="display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--text-muted)">
+              <div style="min-width:18px;height:18px;border-radius:999px;background:rgba(26,86,219,0.10);border:1px solid rgba(26,86,219,0.25);display:flex;align-items:center;justify-content:center;font-size:0.66rem;color:var(--accent);font-weight:700;">S</div> Project start
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--text-muted)">
+              <div style="min-width:18px;height:18px;border-radius:999px;background:rgba(217,119,6,0.10);border:1px solid rgba(217,119,6,0.25);display:flex;align-items:center;justify-content:center;font-size:0.66rem;color:var(--gold);font-weight:700;">E</div> Project end
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--text-muted)">
               <div style="width:14px;height:14px;border-radius:4px;background:var(--primary-glow);border:1px solid var(--primary)"></div> Today
             </div>
           </div>
@@ -111,7 +122,7 @@
             <i class="bi bi-calendar3"></i> Select a day
           </div>
           <div class="cal-detail-empty" id="selectedDayRecords">
-            Click any date on the calendar to view donation details for that day.
+            Click any date on the calendar to view donations plus project start or end milestones for that day.
           </div>
         </div>
 
@@ -137,6 +148,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260421b"></script>
+<script src="js/script.js?v=20260512a"></script>
 </body>
 </html>

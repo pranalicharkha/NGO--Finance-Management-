@@ -40,7 +40,7 @@ router.post("/register", (req, res) => {
             });
         }
 
-        const sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+        const sql = "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)";
 
         db.query(sql, [name, email, password], (err, result) => {
             if (err) {
@@ -51,11 +51,28 @@ router.post("/register", (req, res) => {
                 });
             }
 
-            res.json({
-                success: true,
-                message: "User registered successfully",
-                userId: result.lastID || null
-            });
+            const newUserId = result.lastID || result.insertId || null;
+
+            // Fetch full user so session can be pre-populated
+            db.query(
+                "SELECT id, name, email, phone, pan_number, address, created_at FROM users WHERE id = ? LIMIT 1",
+                [newUserId],
+                (fetchErr, rows) => {
+                    if (fetchErr || !rows || !rows.length) {
+                        return res.json({
+                            success: true,
+                            message: "User registered successfully",
+                            userId: newUserId
+                        });
+                    }
+                    res.json({
+                        success: true,
+                        message: "User registered successfully",
+                        userId: newUserId,
+                        user: rows[0]
+                    });
+                }
+            );
         });
     });
 });
@@ -75,7 +92,8 @@ router.post("/login", (req, res) => {
         });
     }
 
-    const sql = "SELECT id, name, email FROM users WHERE email = ? AND password = ? LIMIT 1";
+    // Return full profile on login so all fields are available in session
+    const sql = "SELECT id, name, email, phone, pan_number, address, created_at FROM users WHERE email = ? AND password = ? LIMIT 1";
 
     db.query(sql, [email, password], (err, results) => {
         if (err) {
@@ -93,9 +111,17 @@ router.post("/login", (req, res) => {
             });
         }
 
+        const user = results[0];
+
+        // Backfill created_at for legacy accounts that were missing it
+        if (!user.created_at) {
+            db.query("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE id = ?", [user.id], () => {});
+            user.created_at = new Date().toISOString();
+        }
+
         res.json({
             success: true,
-            user: results[0]
+            user
         });
     });
 });
