@@ -31,6 +31,35 @@ async function apiFetchJson(url, options = {}) {
     return data;
 }
 
+function notifyProjectDataChanged() {
+    localStorage.setItem("nidigoProjectDataChanged", String(Date.now()));
+}
+
+function initProjectDataRefreshWatcher() {
+    const watchedPages = ["user-dashboard", "user-donations", "user-calendar", "user-transparency"];
+    const page = document.body.dataset.page;
+    if (!watchedPages.includes(page)) return;
+
+    let seenVersion = localStorage.getItem("nidigoProjectDataChanged") || "";
+    const refreshIfChanged = () => {
+        const latestVersion = localStorage.getItem("nidigoProjectDataChanged") || "";
+        if (latestVersion && latestVersion !== seenVersion) {
+            seenVersion = latestVersion;
+            window.location.reload();
+        }
+    };
+
+    window.addEventListener("storage", (event) => {
+        if (event.key === "nidigoProjectDataChanged") {
+            window.location.reload();
+        }
+    });
+    window.addEventListener("focus", refreshIfChanged);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) refreshIfChanged();
+    });
+}
+
 function normalizeDateValue(value) {
     if (!value) return "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -91,6 +120,10 @@ function formatPaymentMethod(value) {
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
+}
+
+function formatPaymentStatus(value) {
+    return String(value || "").toLowerCase() === "paid" ? "Payment Done" : "Payment Pending";
 }
 
 function formatDate(dateValue) {
@@ -991,21 +1024,23 @@ async function initUserDashboardPage() {
                 const colors = ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"];
                 fundingContainer.innerHTML = allProjects.map((project, i) => {
                     const budget = Number(project.budget || 0);
+                    const paymentStatus = String(project.payment_status || "pending").toLowerCase();
+                    const isPaid = paymentStatus === "paid";
                     const pct = maxBudget > 0 ? Math.round((budget / maxBudget) * 100) : 0;
-                    const color = colors[i % colors.length];
+                    const color = isPaid ? colors[i % colors.length] : "#d97706";
                     const statusDot = project.status === "active" ? "\u2705" : project.status === "completed" ? "\u2714\uFE0F" : "\u23F3";
                     return `
                         <div style="margin-bottom:18px;">
                             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
                                 <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name)}</div>
-                                <div style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;margin-left:12px;">${formatCurrency(budget)}</div>
+                                <div style="font-size:0.78rem;color:${isPaid ? "var(--primary)" : "var(--gold)"};white-space:nowrap;margin-left:12px;font-weight:700;">${escapeHtml(formatPaymentStatus(paymentStatus))}</div>
                             </div>
                             <div style="background:var(--surface-2);border-radius:999px;height:22px;overflow:hidden;border:1px solid var(--border);position:relative;">
-                                <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${color},${color}cc);border-radius:999px;transition:width 0.8s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">
+                                <div style="height:100%;width:${pct}%;background:${isPaid ? `linear-gradient(90deg,${color},${color}cc)` : "repeating-linear-gradient(45deg,#d97706,#d97706 8px,#f59e0b 8px,#f59e0b 16px)"};opacity:${isPaid ? "1" : "0.7"};border-radius:999px;transition:width 0.8s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">
                                     ${pct >= 15 ? '<span style="font-size:0.7rem;font-weight:700;color:white;">' + formatCurrency(budget) + '</span>' : ''}
                                 </div>
                             </div>
-                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || "General")} \u2022 ${formatProjectStatus(project.status)}</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || "General")} \u2022 ${formatProjectStatus(project.status)} \u2022 ${escapeHtml(formatPaymentMethod(project.payment_method))}</div>
                         </div>
                     `;
                 }).join("");
@@ -1026,16 +1061,8 @@ async function initUserDashboardPage() {
                     map[key] = (map[key] || 0) + Number(item.amount || 0);
                     return map;
                 }, {});
-            const donationDates = Object.keys(groupedDonations);
-            const firstDate = new Date(`${donationDates[0]}T00:00:00`);
-            firstDate.setDate(firstDate.getDate() - 1);
-            const baselineDate = normalizeDateValue(firstDate.toISOString().slice(0, 10));
-            const trendLabels = [baselineDate, ...donationDates];
-            let runningTotal = 0;
-            const trendValues = trendLabels.map((label) => {
-                runningTotal += Number(groupedDonations[label] || 0);
-                return runningTotal;
-            });
+            const trendLabels = Object.keys(groupedDonations);
+            const trendValues = trendLabels.map((label) => groupedDonations[label]);
 
             destroyChart(userDonationTrendChart);
             userDonationTrendChart = new Chart(trendCanvas, {
@@ -1898,6 +1925,12 @@ async function initUserCalendarPage() {
     const getProjectEndsForDate = (dateStr) =>
         projects.filter((project) => normalizeProjectDate(project.end_date) === dateStr);
 
+    const getProjectPaymentMeta = (project) => {
+        const status = formatPaymentStatus(project.payment_status);
+        const method = formatPaymentMethod(project.payment_method);
+        return `${escapeHtml(status)} &bull; ${escapeHtml(method)}`;
+    };
+
     const updateStats = (year, month) => {
         const monthDonations = donations.filter((item) => {
             const date = new Date(`${normalizeDateValue(item.date)}T00:00:00`);
@@ -1969,7 +2002,8 @@ async function initUserCalendarPage() {
                     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
                         <div>
                             <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(project.project_name || "Project")}</div>
-                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `• ${escapeHtml(project.focus_area)}` : ""}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `&bull; ${escapeHtml(project.focus_area)}` : ""}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">${getProjectPaymentMeta(project)}</div>
                         </div>
                         <span style="background:rgba(26,86,219,0.10);color:var(--accent);border-radius:999px;padding:4px 9px;font-size:0.74rem;font-weight:700;">Start</span>
                     </div>
@@ -1984,7 +2018,8 @@ async function initUserCalendarPage() {
                     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
                         <div>
                             <div style="font-weight:700;color:var(--text-primary);">${escapeHtml(project.project_name || "Project")}</div>
-                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `• ${escapeHtml(project.focus_area)}` : ""}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.ngo_name || "NGO")} ${project.focus_area ? `&bull; ${escapeHtml(project.focus_area)}` : ""}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">${getProjectPaymentMeta(project)}</div>
                         </div>
                         <span style="background:rgba(217,119,6,0.10);color:var(--gold);border-radius:999px;padding:4px 9px;font-size:0.74rem;font-weight:700;">End</span>
                     </div>
@@ -2349,6 +2384,8 @@ async function initUserProjectsPage() {
         code: document.getElementById("projectCode"),
         focusArea: document.getElementById("projectFocus"),
         budget: document.getElementById("projectBudgetInput"),
+        paymentMethod: document.getElementById("projectPaymentMethod"),
+        paymentStatus: document.getElementById("projectPaymentStatus"),
         startDate: document.getElementById("projectStart"),
         endDate: document.getElementById("projectEnd"),
         status: document.getElementById("projectStatus"),
@@ -2371,6 +2408,8 @@ async function initUserProjectsPage() {
         projectForm.reset();
         projectFields.id.value = "";
         projectFields.status.value = "active";
+        if (projectFields.paymentMethod) projectFields.paymentMethod.value = "";
+        if (projectFields.paymentStatus) projectFields.paymentStatus.value = "pending";
         if (ngoProjectCache.length && projectFields.ngoId) {
             projectFields.ngoId.value = ngoProjectCache[0].id;
         }
@@ -2386,26 +2425,36 @@ async function initUserProjectsPage() {
             ngoList.innerHTML = `<div class="chart-card" style="background:var(--surface-2);border-style:dashed;"><div class="chart-title">No projects yet</div><div class="chart-subtitle">Add your first project using the form above.</div></div>`;
             return;
         }
-        ngoList.innerHTML = projects.map((project) => `
-            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:12px;">
-                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:220px;">
-                        <div style="font-weight:700;color:var(--text-primary);font-size:0.96rem;">${escapeHtml(project.project_name)}</div>
-                        <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.focus_area || "Focus area not added")} \u2022 ${formatProjectStatus(project.status)}</div>
-                        <div style="margin-top:10px;color:var(--text-secondary);font-size:0.87rem;line-height:1.65;">${escapeHtml(project.description || "No project description added yet.")}</div>
+        ngoList.innerHTML = projects.map((project) => {
+            const paymentStatus = String(project.payment_status || "pending").toLowerCase();
+            const paymentColor = paymentStatus === "paid" ? "var(--primary)" : "var(--gold)";
+            const paymentActionLabel = paymentStatus === "paid" ? "Mark Payment Pending" : "Mark Payment Done";
+            return `
+                <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:220px;">
+                            <div style="font-weight:700;color:var(--text-primary);font-size:0.96rem;">${escapeHtml(project.project_name)}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${escapeHtml(project.focus_area || "Focus area not added")} \u2022 ${formatProjectStatus(project.status)}</div>
+                            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <span style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:0.75rem;color:${paymentColor};background:var(--card-bg);font-weight:700;">${escapeHtml(formatPaymentStatus(paymentStatus))}</span>
+                                <span style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:0.75rem;color:var(--text-secondary);background:var(--card-bg);">${escapeHtml(formatPaymentMethod(project.payment_method))}</span>
+                            </div>
+                            <div style="margin-top:10px;color:var(--text-secondary);font-size:0.87rem;line-height:1.65;">${escapeHtml(project.description || "No project description added yet.")}</div>
+                        </div>
+                        <div style="text-align:right;min-width:180px;">
+                            <div style="font-weight:700;color:var(--gold);">${formatCurrency(project.budget)}</div>
+                            <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${project.start_date ? formatDate(project.start_date) : "No start"}${project.end_date ? ` to ${formatDate(project.end_date)}` : ""}</div>
+                            ${project.project_code ? `<div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">Code: ${escapeHtml(project.project_code)}</div>` : ""}
+                        </div>
                     </div>
-                    <div style="text-align:right;min-width:180px;">
-                        <div style="font-weight:700;color:var(--gold);">${formatCurrency(project.budget)}</div>
-                        <div style="margin-top:4px;color:var(--text-muted);font-size:0.8rem;">${project.start_date ? formatDate(project.start_date) : "No start"}${project.end_date ? ` to ${formatDate(project.end_date)}` : ""}</div>
-                        ${project.project_code ? `<div style="margin-top:4px;color:var(--text-muted);font-size:0.78rem;">Code: ${escapeHtml(project.project_code)}</div>` : ""}
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+                        <button type="button" class="btn-filter" data-action="edit-project" data-project-id="${project.id}">Edit Project</button>
+                        <button type="button" class="btn-filter" data-action="toggle-project-payment" data-project-id="${project.id}" style="background:${paymentStatus === "paid" ? "var(--gold)" : "var(--primary)"};">${paymentActionLabel}</button>
+                        <button type="button" class="btn-filter" data-action="delete-project" data-project-id="${project.id}" style="background:var(--danger);">Delete Project</button>
                     </div>
                 </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-                    <button type="button" class="btn-filter" data-action="edit-project" data-project-id="${project.id}">Edit Project</button>
-                    <button type="button" class="btn-filter" data-action="delete-project" data-project-id="${project.id}" style="background:var(--danger);">Delete Project</button>
-                </div>
-            </div>
-        `).join("");
+            `;
+        }).join("");
     };
 
     const fetchData = async () => {
@@ -2426,6 +2475,21 @@ async function initUserProjectsPage() {
         return null;
     };
 
+    const buildProjectPayload = (project, overrides = {}) => ({
+        ngo_id: project.ngo_id || (ngoProjectCache.length ? ngoProjectCache[0].id : ""),
+        project_name: project.project_name || "",
+        project_code: project.project_code || "",
+        focus_area: project.focus_area || "",
+        budget: project.budget != null ? project.budget : 0,
+        payment_method: project.payment_method || "",
+        payment_status: project.payment_status || "pending",
+        start_date: normalizeDateValue(project.start_date),
+        end_date: normalizeDateValue(project.end_date),
+        status: project.status || "active",
+        description: project.description || "",
+        ...overrides
+    });
+
     ngoList.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-action]");
         if (!button) return;
@@ -2441,6 +2505,8 @@ async function initUserProjectsPage() {
             projectFields.code.value = project.project_code || "";
             projectFields.focusArea.value = project.focus_area || "";
             projectFields.budget.value = project.budget != null ? project.budget : 0;
+            if (projectFields.paymentMethod) projectFields.paymentMethod.value = project.payment_method || "";
+            if (projectFields.paymentStatus) projectFields.paymentStatus.value = project.payment_status || "pending";
             projectFields.startDate.value = normalizeDateValue(project.start_date);
             projectFields.endDate.value = normalizeDateValue(project.end_date);
             projectFields.status.value = project.status || "active";
@@ -2454,11 +2520,27 @@ async function initUserProjectsPage() {
             if (!window.confirm("Delete this project?")) return;
             try {
                 await apiFetchJson(`/user/projects/${projectId}?userId=${getUserId()}`, { method: "DELETE" });
+                notifyProjectDataChanged();
                 setMessage("Project deleted successfully.", "success");
                 await fetchData();
                 resetProjectForm();
             } catch (error) {
                 setMessage(error.message || "Failed to delete project.", "error");
+            }
+        }
+
+        if (action === "toggle-project-payment") {
+            const project = findProject(projectId);
+            if (!project) return;
+            const nextStatus = String(project.payment_status || "pending").toLowerCase() === "paid" ? "pending" : "paid";
+            const payload = buildProjectPayload(project, { payment_status: nextStatus });
+            try {
+                await apiFetchJson(`/user/projects/${projectId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                notifyProjectDataChanged();
+                setMessage(`Project marked as ${formatPaymentStatus(nextStatus).toLowerCase()}.`, "success");
+                await fetchData();
+            } catch (error) {
+                setMessage(error.message || "Failed to update payment status.", "error");
             }
         }
     });
@@ -2476,6 +2558,8 @@ async function initUserProjectsPage() {
             project_code: projectFields.code.value.trim(),
             focus_area: projectFields.focusArea.value.trim(),
             budget: projectFields.budget.value,
+            payment_method: projectFields.paymentMethod ? projectFields.paymentMethod.value : "",
+            payment_status: projectFields.paymentStatus ? projectFields.paymentStatus.value : "pending",
             start_date: projectFields.startDate.value,
             end_date: projectFields.endDate.value,
             status: projectFields.status.value,
@@ -2484,9 +2568,11 @@ async function initUserProjectsPage() {
         try {
             if (projectFields.id.value) {
                 await apiFetchJson(`/user/projects/${projectFields.id.value}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                notifyProjectDataChanged();
                 setMessage("Project updated successfully.", "success");
             } else {
                 await apiFetchJson("/user/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                notifyProjectDataChanged();
                 setMessage("Project added successfully.", "success");
             }
             resetProjectForm();
@@ -2865,6 +2951,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setTopbarDate();
     applyUserSession();
+    initProjectDataRefreshWatcher();
     document.querySelectorAll(".mode-toggle").forEach((button) => button.addEventListener("click", toggleTheme));
     
     

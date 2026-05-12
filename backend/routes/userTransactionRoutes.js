@@ -101,7 +101,7 @@ function buildDonationFilters(query, userId) {
 }
 
 function buildProjectDonationFilters(query) {
-    const clauses = [];
+    const clauses = ["COALESCE(p.payment_status, 'pending') = 'paid'"];
     const params = [];
 
     if (query.date && isValidDate(query.date)) {
@@ -437,7 +437,7 @@ router.get("/transactions", (req, res) => {
                     COALESCE(MAX(i.date), p.start_date, p.created_at, DATE('now')) AS date,
                     COALESCE(MAX(i.category), 'Donation') AS category,
                     COALESCE(MAX(i.source), 'Project funding') AS source,
-                    COALESCE(MAX(i.payment_method), 'bank_transfer') AS payment_method,
+                    COALESCE(MAX(i.payment_method), p.payment_method, 'bank_transfer') AS payment_method,
                     p.budget AS amount,
                     MAX(i.description) AS description,
                     p.id AS project_id,
@@ -448,6 +448,8 @@ router.get("/transactions", (req, res) => {
                     p.focus_area AS project_focus_area,
                     p.budget AS project_budget,
                     p.status AS project_status,
+                    p.payment_method AS project_payment_method,
+                    p.payment_status AS project_payment_status,
                     p.start_date AS project_start_date,
                     p.end_date AS project_end_date
                 FROM projects p
@@ -461,6 +463,8 @@ router.get("/transactions", (req, res) => {
                     p.focus_area,
                     p.budget,
                     p.status,
+                    p.payment_method,
+                    p.payment_status,
                     p.start_date,
                     p.end_date,
                     p.created_at,
@@ -487,6 +491,8 @@ router.get("/transactions", (req, res) => {
                     p.focus_area AS project_focus_area,
                     p.budget AS project_budget,
                     p.status AS project_status,
+                    p.payment_method AS project_payment_method,
+                    p.payment_status AS project_payment_status,
                     p.start_date AS project_start_date,
                     p.end_date AS project_end_date
                 FROM income i
@@ -532,6 +538,8 @@ router.get("/transactions", (req, res) => {
                 project_focus_area: item.project_focus_area,
                 project_budget: Number(item.project_budget || 0),
                 project_status: item.project_status,
+                project_payment_method: item.project_payment_method,
+                project_payment_status: item.project_payment_status,
                 project_start_date: item.project_start_date,
                 project_end_date: item.project_end_date,
                 type: "income"

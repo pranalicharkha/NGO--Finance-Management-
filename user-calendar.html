@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Donation Calendar - Nidigo</title>
+  <title>Project Calendar - Nidigo</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="css/style.css"/>
@@ -22,8 +22,8 @@
     <div class="nav-section-label">Overview</div>
     <a href="user-dashboard.html" class="nav-link"><i class="bi bi-house"></i><span>Dashboard</span></a>
     <a href="user-projects.html" class="nav-link"><i class="bi bi-folder2-open"></i><span>Projects</span></a>
-    <a href="user-donations.html" class="nav-link active"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
-    <a href="user-transparency.html" class="nav-link"><i class="bi bi-megaphone"></i><span>NGO Updates</span></a>
+    <a href="user-donations.html" class="nav-link"><i class="bi bi-heart-pulse"></i><span>My Donations</span></a>
+    <a href="user-calendar.html" class="nav-link active"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
     <div class="nav-section-label">My Account</div>
     <a href="user-profile.html" class="nav-link"><i class="bi bi-person-circle"></i><span>Profile</span></a>
   </nav>
@@ -33,7 +33,7 @@
 </aside>
 
 <header class="topbar">
-  <div class="topbar-title">Donation Calendar</div>
+  <div class="topbar-title">Project Calendar</div>
   <div class="topbar-right">
     <span class="topbar-date" id="topbarDate"></span>
     <button class="mode-toggle" title="Toggle theme"><i class="bi bi-moon-stars-fill"></i></button>
@@ -47,35 +47,12 @@
 <main class="main-content">
   <div class="page-body">
     <div class="page-header">
-      <h2>Your Donation Calendar</h2>
-      <p>View your real donation history by date. Click any day to see the recorded details for that date.</p>
+      <h2>Project Calendar</h2>
+      <p>Track project start and end dates. Click any day to see the project milestones scheduled for that date.</p>
     </div>
 
     <div class="row g-3">
       <div class="col-12 col-xl-8">
-        <div class="cal-month-stats">
-          <div class="cal-stat-pill pill-inc">
-            <div class="pill-label">Month Donations</div>
-            <div class="pill-val" id="calMonthInc">Rs 0.00</div>
-          </div>
-          <div class="cal-stat-pill pill-bal">
-            <div class="pill-label">Total Donations</div>
-            <div class="pill-val" id="calTotalDonations">0</div>
-          </div>
-          <div class="cal-stat-pill pill-exp">
-            <div class="pill-label">Projects Supported</div>
-            <div class="pill-val" id="calProjectsSupported">0</div>
-          </div>
-          <div class="cal-stat-pill">
-            <div class="pill-label">Project Starts</div>
-            <div class="pill-val" id="calProjectStarts" style="color:var(--accent)">0</div>
-          </div>
-          <div class="cal-stat-pill">
-            <div class="pill-label">Project Ends</div>
-            <div class="pill-val" id="calProjectEnds" style="color:var(--gold)">0</div>
-          </div>
-        </div>
-
         <div class="calendar-wrap">
           <div class="cal-header">
             <button class="cal-nav-btn" id="calPrev">
@@ -101,7 +78,7 @@
 
           <div style="display:flex;gap:18px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--text-muted)">
-              <div class="cal-dot income-dot"></div> Donation recorded
+              <div class="cal-dot income-dot"></div> Funding recorded
             </div>
             <div style="display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--text-muted)">
               <div style="min-width:18px;height:18px;border-radius:999px;background:rgba(26,86,219,0.10);border:1px solid rgba(26,86,219,0.25);display:flex;align-items:center;justify-content:center;font-size:0.66rem;color:var(--accent);font-weight:700;">S</div> Project start
@@ -122,7 +99,7 @@
             <i class="bi bi-calendar3"></i> Select a day
           </div>
           <div class="cal-detail-empty" id="selectedDayRecords">
-            Click any date on the calendar to view donations plus project start or end milestones for that day.
+            Click any date on the calendar to view project start and end milestones for that day.
           </div>
         </div>
 
@@ -132,13 +109,10 @@
           </div>
           <div style="display:flex;flex-direction:column;gap:9px">
             <a href="user-donations.html" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(15,110,77,0.08);border-radius:var(--radius-sm);color:var(--primary);font-size:0.88rem;font-weight:600;text-decoration:none;">
-              <i class="bi bi-heart-fill"></i> View All Donations
+              <i class="bi bi-heart-fill"></i> View Donations
             </a>
             <a href="user-projects.html" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(26,86,219,0.07);border-radius:var(--radius-sm);color:var(--accent);font-size:0.88rem;font-weight:600;text-decoration:none;">
               <i class="bi bi-folder2-open"></i> Browse Projects
-            </a>
-            <a href="user-transparency.html" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(217,119,6,0.07);border-radius:var(--radius-sm);color:var(--gold);font-size:0.88rem;font-weight:600;text-decoration:none;">
-              <i class="bi bi-pie-chart"></i> View Transparency
             </a>
           </div>
         </div>
@@ -148,6 +122,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260512a"></script>
+<script src="js/script.js?v=20260512q"></script>
 </body>
 </html>

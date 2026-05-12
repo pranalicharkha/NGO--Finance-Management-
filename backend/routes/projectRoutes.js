@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../config/db");
 
 const PROJECT_STATUSES = new Set(["planned", "active", "completed", "on_hold"]);
+const PAYMENT_STATUSES = new Set(["pending", "paid"]);
 
 function cleanText(value) {
     if (value === undefined || value === null) return null;
@@ -25,6 +26,11 @@ function normalizeStatus(value) {
     return PROJECT_STATUSES.has(status) ? status : null;
 }
 
+function normalizePaymentStatus(value) {
+    const status = cleanText(value) || "pending";
+    return PAYMENT_STATUSES.has(status) ? status : null;
+}
+
 router.get("/ngos", (req, res) => {
     try {
         // Single-NGO platform: return all NGOs regardless of user
@@ -45,7 +51,9 @@ router.get("/ngos", (req, res) => {
                 p.start_date,
                 p.end_date,
                 p.budget,
-                p.status
+                p.status,
+                p.payment_method,
+                p.payment_status
             FROM ngos n
             LEFT JOIN projects p ON p.ngo_id = n.id
             ORDER BY n.ngo_name ASC, p.created_at DESC, p.id DESC
@@ -83,7 +91,9 @@ router.get("/ngos", (req, res) => {
                     start_date: row.start_date,
                     end_date: row.end_date,
                     budget: Number(row.budget || 0),
-                    status: row.status
+                    status: row.status,
+                    payment_method: row.payment_method,
+                    payment_status: row.payment_status || "pending"
                 };
                 ngo.projects.push(project);
                 ngo.totals.projectCount += 1;
@@ -248,7 +258,9 @@ router.get("/projects", (req, res) => {
                 p.start_date,
                 p.end_date,
                 p.budget,
-                p.status
+                p.status,
+                p.payment_method,
+                p.payment_status
             FROM projects p
             INNER JOIN ngos n ON n.id = p.ngo_id
             ${whereSql}
@@ -259,7 +271,8 @@ router.get("/projects", (req, res) => {
             success: true,
             projects: projects.map((item) => ({
                 ...item,
-                budget: Number(item.budget || 0)
+                budget: Number(item.budget || 0),
+                payment_status: item.payment_status || "pending"
             }))
         });
     } catch (error) {
@@ -281,17 +294,19 @@ router.post("/projects", (req, res) => {
     const endDate = cleanText(req.body.end_date);
     const budget = normalizeAmount(req.body.budget);
     const status = normalizeStatus(req.body.status);
+    const paymentMethod = cleanText(req.body.payment_method);
+    const paymentStatus = normalizePaymentStatus(req.body.payment_status);
 
-    if (!ngoId || !projectName || budget === null || !status || !isValidDate(startDate) || !isValidDate(endDate)) {
+    if (!ngoId || !projectName || budget === null || !status || !paymentStatus || !isValidDate(startDate) || !isValidDate(endDate)) {
         return res.status(400).json({
             success: false,
-            message: "NGO, project name, valid budget, status, and valid dates are required"
+            message: "NGO, project name, valid budget, status, payment status, and valid dates are required"
         });
     }
 
     db.query(
-        "INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status],
+        "INSERT INTO projects (ngo_id, project_name, project_code, focus_area, description, start_date, end_date, budget, status, payment_method, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status, paymentMethod, paymentStatus],
         (err, result) => {
             if (err) {
                 console.log("Project Insert Error:", err);
@@ -327,17 +342,19 @@ router.put("/projects/:id", (req, res) => {
     const endDate = cleanText(req.body.end_date);
     const budget = normalizeAmount(req.body.budget);
     const status = normalizeStatus(req.body.status);
+    const paymentMethod = cleanText(req.body.payment_method);
+    const paymentStatus = normalizePaymentStatus(req.body.payment_status);
 
-    if (!projectId || !ngoId || !projectName || budget === null || !status || !isValidDate(startDate) || !isValidDate(endDate)) {
+    if (!projectId || !ngoId || !projectName || budget === null || !status || !paymentStatus || !isValidDate(startDate) || !isValidDate(endDate)) {
         return res.status(400).json({
             success: false,
-            message: "Project id, NGO, project name, valid budget, status, and valid dates are required"
+            message: "Project id, NGO, project name, valid budget, status, payment status, and valid dates are required"
         });
     }
 
     db.query(
-        "UPDATE projects SET ngo_id = ?, project_name = ?, project_code = ?, focus_area = ?, description = ?, start_date = ?, end_date = ?, budget = ?, status = ? WHERE id = ?",
-        [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status, projectId],
+        "UPDATE projects SET ngo_id = ?, project_name = ?, project_code = ?, focus_area = ?, description = ?, start_date = ?, end_date = ?, budget = ?, status = ?, payment_method = ?, payment_status = ? WHERE id = ?",
+        [ngoId, projectName, projectCode, focusArea, description, startDate, endDate, budget, status, paymentMethod, paymentStatus, projectId],
         (err, result) => {
             if (err) {
                 console.log("Project Update Error:", err);
