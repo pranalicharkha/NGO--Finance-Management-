@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ngo-finance-management
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: DATABASE_PATH
+        value: /data/finance_management.db
+    disk:
+      name: sqlite-data
+      mountPath: /data
+      sizeGB: 1
