@@ -269,4 +269,43 @@ router.get("/donations", (req, res) => {
     });
 });
 
+router.put("/donations/:id/payment-status", (req, res) => {
+    const donationId = Number(req.params.id);
+    const userId = Number(req.body.userId);
+    const paymentStatus = String(req.body.payment_status || "").trim().toLowerCase();
+
+    if (!donationId || !userId || !["paid", "pending"].includes(paymentStatus)) {
+        return res.status(400).json({
+            success: false,
+            message: "Valid donation id, user id, and payment status are required"
+        });
+    }
+
+    db.query(
+        "UPDATE project_donations SET payment_status = ? WHERE id = ? AND user_id = ?",
+        [paymentStatus, donationId, userId],
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to update donation payment status"
+                });
+            }
+
+            if (!result.affectedRows) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Donation not found"
+                });
+            }
+
+            res.json({
+                success: true,
+                message: "Donation payment status updated successfully"
+            });
+        }
+    );
+});
+
 module.exports = router;

@@ -91,13 +91,13 @@
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Budget by Focus Area</div>
-              <div class="chart-subtitle">How project funding goals are distributed across categories</div>
+              <div class="chart-title">Your Donation Categories</div>
+              <div class="chart-subtitle">How your donations are distributed across project categories</div>
             </div>
             <span class="chart-badge">Live</span>
           </div>
           <div style="height:300px;position:relative;"><canvas id="userPieChart"></canvas></div>
-          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No active admin projects yet. Once the admin adds a live project, its funding goal will appear here.</div>
+          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No donation category data yet. Donate to a project to see your category split.</div>
         </div>
       </div>
 
@@ -122,13 +122,13 @@
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Project Funding Overview</div>
-              <div class="chart-subtitle">Target amount and payment status for each visible project</div>
+              <div class="chart-title">Your Donations by Project</div>
+              <div class="chart-subtitle">How much you have donated to each project</div>
             </div>
             <a href="user-projects.html" class="view-all" style="font-size:0.82rem;">View Projects &rarr;</a>
           </div>
           <div id="projectFundingBars" style="margin-top:8px;">
-            <div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No projects yet. Add projects to see funding progress.</div>
+            <div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No donations yet. Donate to a project to see your contribution breakdown.</div>
           </div>
         </div>
       </div>
@@ -136,14 +136,14 @@
       <div class="col-12 col-lg-5">
         <div class="recent-card">
           <div class="recent-header">
-            <h5><i class="bi bi-activity me-2" style="color:var(--text-muted)"></i>Recent Project Activity</h5>
-            <a href="user-projects.html" class="view-all">View All &rarr;</a>
+            <h5><i class="bi bi-activity me-2" style="color:var(--text-muted)"></i>Recent Donation Activity</h5>
+            <a href="user-donations.html" class="view-all">View All &rarr;</a>
           </div>
           <div class="activity-list" id="userRecentNgoActivity">
             <div class="activity-item">
               <div class="act-info">
-                <div class="act-title">No project activity yet</div>
-                <div class="act-date">Add projects to see updates here.</div>
+                <div class="act-title">No donation activity yet</div>
+                <div class="act-date">Your latest donations will appear here.</div>
               </div>
             </div>
           </div>
@@ -157,26 +157,26 @@
         <div class="chart-card" style="border-left:4px solid var(--primary)">
           <div class="chart-header">
             <div>
-              <div class="chart-title">Platform Snapshot</div>
-              <div class="chart-subtitle">Live totals from the system database.</div>
+              <div class="chart-title">Your Donation Snapshot</div>
+              <div class="chart-subtitle">A quick view of your recorded donation activity.</div>
             </div>
           </div>
           <div class="row g-3" style="margin-top:4px;">
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Total Projects</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Projects Supported</div>
                 <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutProjectCount">0</div>
               </div>
             </div>
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Active Projects</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Donation Records</div>
                 <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutActiveCount">0</div>
               </div>
             </div>
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Combined Funding Goals</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Total Donated</div>
                 <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutTotalBudget">Rs 0.00</div>
               </div>
             </div>
@@ -188,6 +188,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260513a"></script>
+<script src="js/script.js?v=20260513c"></script>
 </body>
 </html>

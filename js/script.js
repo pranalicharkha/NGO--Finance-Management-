@@ -1143,8 +1143,43 @@ async function initUserDashboardPage() {
         const donations = donationData.transactions || [];
         const allProjects = projectData.projects || [];
         const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(String(project.status || "").toLowerCase()));
-        const totalBudget = visibleProjects.reduce((sum, project) => sum + Number(project.budget || project.target_amount || 0), 0);
         const totalDonatedByUser = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const donationProjectMap = donations.reduce((map, item) => {
+            const key = String(item.project_id || item.project_name || "");
+            if (!key) return map;
+
+            if (!map[key]) {
+                map[key] = {
+                    project_id: item.project_id,
+                    project_name: item.project_name || item.source || "Project",
+                    project_focus_area: item.project_focus_area || item.category || "General",
+                    project_status: item.project_status || "active",
+                    project_payment_method: item.project_payment_method || item.payment_method || null,
+                    project_payment_status: item.project_payment_status || "pending",
+                    total_amount: 0,
+                    donation_count: 0,
+                    latest_date: item.date
+                };
+            }
+
+            map[key].total_amount += Number(item.amount || 0);
+            map[key].donation_count += 1;
+            if (normalizeDateValue(item.date) >= normalizeDateValue(map[key].latest_date)) {
+                map[key].latest_date = item.date;
+                map[key].project_payment_status = item.project_payment_status || map[key].project_payment_status;
+                map[key].project_payment_method = item.project_payment_method || item.payment_method || map[key].project_payment_method;
+                map[key].project_status = item.project_status || map[key].project_status;
+            }
+
+            return map;
+        }, {});
+        const donatedProjects = Object.values(donationProjectMap)
+            .sort((a, b) => {
+                const dateCompare = new Date(`${normalizeDateValue(b.latest_date)}T00:00:00`) - new Date(`${normalizeDateValue(a.latest_date)}T00:00:00`);
+                if (dateCompare !== 0) return dateCompare;
+                return b.total_amount - a.total_amount;
+            });
+        const supportedProjectsCount = donatedProjects.length;
 
         const activeCount = allProjects.filter(p => p.status === "active").length;
         const completedCount = allProjects.filter(p => p.status === "completed").length;
@@ -1157,15 +1192,15 @@ async function initUserDashboardPage() {
         setText("userActiveInfo", activeCount + " active, " + plannedCount + " planned");
 
         // Platform snapshot
-        setText("aboutProjectCount", String(allProjects.length));
-        setText("aboutActiveCount", String(activeCount));
-        setText("aboutTotalBudget", formatCurrency(totalBudget));
+        setText("aboutProjectCount", String(supportedProjectsCount));
+        setText("aboutActiveCount", String(donations.length));
+        setText("aboutTotalBudget", formatCurrency(totalDonatedByUser));
 
         // ===== 1. BUDGET BY FOCUS AREA (Doughnut) =====
         const focusMap = {};
-        visibleProjects.forEach(p => {
-            const area = p.focus_area || p.category || "General";
-            focusMap[area] = (focusMap[area] || 0) + Number(p.budget || p.target_amount || 0);
+        donations.forEach((item) => {
+            const area = item.project_focus_area || item.category || "General";
+            focusMap[area] = (focusMap[area] || 0) + Number(item.amount || 0);
         });
         const pieLabels = Object.keys(focusMap);
         const pieValues = Object.values(focusMap);
@@ -1201,30 +1236,30 @@ async function initUserDashboardPage() {
 
         // ===== 2. PROJECT FUNDING PROGRESS BARS =====
         if (fundingContainer) {
-            if (!visibleProjects.length) {
-                fundingContainer.innerHTML = '<div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No active or planned admin projects yet.</div>';
+            if (!donatedProjects.length) {
+                fundingContainer.innerHTML = '<div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No donations yet. Donate to a project to see your contribution breakdown.</div>';
             } else {
-                const maxBudget = Math.max(...visibleProjects.map(p => Number(p.budget || 0)), 1);
+                const maxDonation = Math.max(...donatedProjects.map((project) => Number(project.total_amount || 0)), 1);
                 const colors = ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"];
-                fundingContainer.innerHTML = visibleProjects.map((project, i) => {
-                    const budget = Number(project.budget || project.target_amount || 0);
-                    const paymentStatus = String(project.payment_status || "pending").toLowerCase();
+                fundingContainer.innerHTML = donatedProjects.map((project, i) => {
+                    const donatedAmount = Number(project.total_amount || 0);
+                    const paymentStatus = String(project.project_payment_status || "pending").toLowerCase();
                     const isPaid = paymentStatus === "paid";
-                    const pct = maxBudget > 0 ? Math.round((budget / maxBudget) * 100) : 0;
+                    const pct = maxDonation > 0 ? Math.round((donatedAmount / maxDonation) * 100) : 0;
                     const color = isPaid ? colors[i % colors.length] : "#d97706";
-                    const statusDot = project.status === "active" ? "\u2705" : project.status === "completed" ? "\u2714\uFE0F" : "\u23F3";
+                    const statusDot = project.project_status === "active" ? "\u2705" : project.project_status === "completed" ? "\u2714\uFE0F" : "\u23F3";
                     return `
                         <div style="margin-bottom:18px;">
                             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
-                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name || project.name || "Project")}</div>
-                                <div style="font-size:0.78rem;color:${isPaid ? "var(--primary)" : "var(--gold)"};white-space:nowrap;margin-left:12px;font-weight:700;">${escapeHtml(formatPaymentStatus(paymentStatus))}</div>
+                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name || "Project")}</div>
+                                <div style="font-size:0.78rem;color:${isPaid ? "var(--primary)" : "var(--gold)"};white-space:nowrap;margin-left:12px;font-weight:700;">${formatCurrency(donatedAmount)}</div>
                             </div>
                             <div style="background:var(--surface-2);border-radius:999px;height:22px;overflow:hidden;border:1px solid var(--border);position:relative;">
                                 <div style="height:100%;width:${pct}%;background:${isPaid ? `linear-gradient(90deg,${color},${color}cc)` : "repeating-linear-gradient(45deg,#d97706,#d97706 8px,#f59e0b 8px,#f59e0b 16px)"};opacity:${isPaid ? "1" : "0.7"};border-radius:999px;transition:width 0.8s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">
-                                    ${pct >= 15 ? '<span style="font-size:0.7rem;font-weight:700;color:white;">' + formatCurrency(budget) + '</span>' : ''}
+                                    ${pct >= 15 ? '<span style="font-size:0.7rem;font-weight:700;color:white;">' + formatCurrency(donatedAmount) + '</span>' : ''}
                                 </div>
                             </div>
-                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || project.category || "General")} \u2022 ${formatProjectStatus(project.status)} \u2022 ${escapeHtml(formatPaymentMethod(project.payment_method))}</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.project_focus_area || "General")} \u2022 ${project.donation_count} donation${project.donation_count === 1 ? "" : "s"} \u2022 ${escapeHtml(formatPaymentStatus(paymentStatus))}</div>
                         </div>
                     `;
                 }).join("");
@@ -1289,17 +1324,16 @@ async function initUserDashboardPage() {
         }
 
         // ===== Recent project activity =====
-        const recentProjects = visibleProjects
+        const recentProjects = donatedProjects
             .slice()
-            .sort((a, b) => b.id - a.id)
             .slice(0, 5);
 
         if (!recentProjects.length) {
             recentContainer.innerHTML = `
                 <div class="activity-item">
                     <div class="act-info">
-                        <div class="act-title">No project activity yet</div>
-                        <div class="act-date">Add projects to see updates here.</div>
+                        <div class="act-title">No donation activity yet</div>
+                        <div class="act-date">Your latest donations will appear here.</div>
                     </div>
                 </div>
             `;
@@ -1308,10 +1342,10 @@ async function initUserDashboardPage() {
             const statusColors = { active: "#1a56db", completed: "#10b981", planned: "#d97706", on_hold: "#dc2626" };
             recentContainer.innerHTML = recentProjects.map((project) => `
                 <div class="activity-item">
-                    <div class="act-icon" style="background:rgba(26,86,219,0.1);color:${statusColors[project.status] || '#1a56db'}"><i class="bi ${statusIcons[project.status] || 'bi-folder2-open'}"></i></div>
+                    <div class="act-icon" style="background:rgba(26,86,219,0.1);color:${statusColors[project.project_status] || '#1a56db'}"><i class="bi ${statusIcons[project.project_status] || 'bi-folder2-open'}"></i></div>
                     <div class="act-info">
-                        <div class="act-title">${escapeHtml(project.project_name || project.name || "Project")}</div>
-                        <div class="act-date">${escapeHtml(formatProjectStatus(project.status))} \u2022 Goal: ${formatCurrency(project.budget || project.target_amount || 0)}</div>
+                        <div class="act-title">${escapeHtml(project.project_name || "Project")}</div>
+                        <div class="act-date">${formatDate(project.latest_date)} \u2022 Donated ${formatCurrency(project.total_amount)}</div>
                     </div>
                 </div>
             `).join("");
@@ -1380,6 +1414,7 @@ async function initUserDonationsPage() {
         dateFrom: document.getElementById("donationDateFrom"),
         dateTo: document.getElementById("donationDateTo"),
         project: document.getElementById("donationProjectFilter"),
+        paymentStatus: document.getElementById("donationStatusFilter"),
         minAmount: document.getElementById("donationMinAmount"),
         maxAmount: document.getElementById("donationMaxAmount")
     };
@@ -1448,15 +1483,27 @@ async function initUserDonationsPage() {
         addParam("dateFrom", filterFields.dateFrom?.value);
         addParam("dateTo", filterFields.dateTo?.value);
         addParam("projectId", filterFields.project?.value);
+        addParam("paymentStatus", filterFields.paymentStatus?.value);
         addParam("minAmount", filterFields.minAmount?.value);
         addParam("maxAmount", filterFields.maxAmount?.value);
 
         return params.toString();
     };
 
+    const updateDonationPaymentStatus = async (item, paymentStatus) => {
+        await apiFetchJson(`/user/donations/${item.id}/payment-status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId: getUserId(),
+                payment_status: paymentStatus
+            })
+        });
+    };
+
     const renderDonationRows = (donations) => {
         if (!donations.length) {
-            tbody.innerHTML = "<tr><td colspan='6'>No donation records yet</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='7'>No donation records yet</td></tr>";
             return;
         }
 
@@ -1471,9 +1518,17 @@ async function initUserDonationsPage() {
                 <td>${formatDate(item.date)}</td>
                 <td>${escapeHtml(formatPaymentMethod(item.payment_method))}</td>
                 <td>
+                    <span style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:0.75rem;font-weight:700;background:${String(item.payment_status || "pending").toLowerCase() === "paid" ? "rgba(15,110,77,0.12)" : "rgba(217,119,6,0.12)"};color:${String(item.payment_status || "pending").toLowerCase() === "paid" ? "var(--primary)" : "var(--gold)"};">
+                        ${escapeHtml(formatPaymentStatus(item.payment_status || "pending"))}
+                    </span>
+                </td>
+                <td>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button type="button" class="btn-filter" data-action="view-project" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;">
                             <i class="bi bi-eye me-1"></i>Project
+                        </button>
+                        <button type="button" class="btn-filter" data-action="toggle-payment-status" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:${String(item.payment_status || "pending").toLowerCase() === "paid" ? "var(--gold)" : "var(--primary)"};">
+                            <i class="bi bi-arrow-repeat me-1"></i>${String(item.payment_status || "pending").toLowerCase() === "paid" ? "Mark Pending" : "Mark Done"}
                         </button>
                         <button type="button" class="btn-filter" data-action="download-receipt" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--primary);">
                             <i class="bi bi-file-earmark-pdf me-1"></i>Download Receipt
@@ -1762,6 +1817,19 @@ async function initUserDonationsPage() {
         if (button.dataset.action === "download-receipt") {
             downloadReceipt(item);
         }
+
+        if (button.dataset.action === "toggle-payment-status") {
+            const nextStatus = String(item.payment_status || "pending").toLowerCase() === "paid" ? "pending" : "paid";
+            updateDonationPaymentStatus(item, nextStatus)
+                .then(async () => {
+                    await loadDonationData();
+                    setMessage(`Donation payment marked as ${formatPaymentStatus(nextStatus)}.`, "success");
+                })
+                .catch((error) => {
+                    console.error("Donation payment status error:", error);
+                    setMessage(error.message || "Unable to update payment status.", "error");
+                });
+        }
     });
 
     donationRangeSelect?.addEventListener("change", () => {
@@ -1783,7 +1851,7 @@ async function initUserDonationsPage() {
             setMessage("");
         } catch (error) {
             console.error("Donation filter error:", error);
-            tbody.innerHTML = "<tr><td colspan='6'>Unable to apply donation filters</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='7'>Unable to apply donation filters</td></tr>";
             setMessage(error.message || "Unable to apply donation filters.", "error");
         }
     });
@@ -1803,7 +1871,7 @@ async function initUserDonationsPage() {
         await loadDonationData();
 
         exportButton?.addEventListener("click", () => {
-            const rows = [["Donation ID", "Project Name", "Amount Donated", "Donation Date", "Payment Method", "Category", "Note"]];
+            const rows = [["Donation ID", "Project Name", "Amount Donated", "Donation Date", "Payment Method", "Payment Status", "Category", "Note"]];
             donationCache.forEach((item) => {
                 rows.push([
                     item.id,
@@ -1811,6 +1879,7 @@ async function initUserDonationsPage() {
                     item.amount,
                     normalizeDateValue(item.date),
                     formatPaymentMethod(item.payment_method),
+                    formatPaymentStatus(item.payment_status || "pending"),
                     item.category || "",
                     item.description || ""
                 ]);
@@ -1819,7 +1888,7 @@ async function initUserDonationsPage() {
         });
     } catch (error) {
         console.error("Donation history error:", error);
-        tbody.innerHTML = "<tr><td colspan='6'>Unable to load donation history</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='7'>Unable to load donation history</td></tr>";
         setMessage(error.message || "Unable to load donation history.", "error");
     }
 }
@@ -3337,7 +3406,7 @@ async function initProjectsPage() {
             donationsProjectNameLabel.textContent = `Donations for: ${projectName}`;
             
             if (donations.length === 0) {
-                donationsTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No donations found</td></tr>';
+                donationsTableBody.innerHTML = '<tr><td colspan="7" class="text-center">No donations found</td></tr>';
             } else {
                 donationsTableBody.innerHTML = donations.map(d => `
                     <tr>
@@ -3345,7 +3414,12 @@ async function initProjectsPage() {
                         <td>${d.anonymous ? 'Anonymous' : (d.donor_name || (d.user_name || '-'))}</td>
                         <td>${d.anonymous ? '-' : (d.donor_email || (d.user_email || '-'))}</td>
                         <td style="color: var(--primary); font-weight: 600;">${formatCurrency(d.amount)}</td>
-                        <td>${d.payment_method || '-'}</td>
+                        <td>${escapeHtml(formatPaymentMethod(d.payment_method))}</td>
+                        <td>
+                            <span class="badge ${String(d.payment_status || 'pending').toLowerCase() === 'paid' ? 'bg-success' : 'bg-warning text-dark'}">
+                                ${escapeHtml(formatPaymentStatus(d.payment_status || 'pending'))}
+                            </span>
+                        </td>
                         <td>
                             <span class="badge ${d.anonymous ? 'bg-warning' : 'bg-success'}">
                                 ${d.anonymous ? 'Yes' : 'No'}

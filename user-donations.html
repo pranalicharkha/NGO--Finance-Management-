@@ -146,6 +146,14 @@
           </select>
         </div>
         <div class="col-12 col-md-6 col-xl-3">
+          <label class="form-label" for="donationStatusFilter">Payment Status</label>
+          <select id="donationStatusFilter" class="form-select">
+            <option value="">All statuses</option>
+            <option value="paid">Payment Done</option>
+            <option value="pending">Payment Pending</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
           <label class="form-label" for="donationMinAmount">Min Amount</label>
           <input type="number" id="donationMinAmount" class="form-control" min="0" step="0.01" placeholder="0.00"/>
         </div>
@@ -185,11 +193,12 @@
               <th><i class="bi bi-currency-rupee me-1"></i>Amount</th>
               <th><i class="bi bi-calendar3 me-1"></i>Donation Date</th>
               <th><i class="bi bi-credit-card me-1"></i>Payment Method</th>
+              <th>Payment Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="donationHistoryBody">
-            <tr><td colspan="6">Loading donation history...</td></tr>
+            <tr><td colspan="7">Loading donation history...</td></tr>
           </tbody>
         </table>
       </div>
@@ -217,6 +226,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/script.js?v=20260513a"></script>
+<script src="js/script.js?v=20260513c"></script>
 </body>
 </html>
