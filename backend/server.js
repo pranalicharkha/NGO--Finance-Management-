@@ -9,12 +9,19 @@ const app = express();
 
 // Middleware
 const corsOptions = {
-    origin: [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://ngo-finance-management-1.onrender.com",
-        "https://nidigo-frontend.vercel.app"
-    ],
+    origin: function (origin, callback) {
+        const allowed = [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://ngo-finance-management-1.onrender.com",
+            "https://nidigo-frontend.vercel.app"
+        ];
+        if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept"]

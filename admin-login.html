@@ -84,10 +84,9 @@ document.getElementById("loginForm").addEventListener("submit", async function (
 
     errorBox.style.display = "none";
 
-    const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://nidigo-backend.onrender.com');
-
     try {
-        const response = await fetch(apiBase + "/login", {
+        // Use the global API_BASE_URL configured in api-config.js
+        const response = await fetch(API_BASE_URL + "/login", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

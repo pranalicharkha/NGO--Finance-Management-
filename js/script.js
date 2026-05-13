@@ -15,7 +15,7 @@ let userDonationTrendChart;
 
 async function apiFetchJson(url, options = {}) {
     // Get API base URL - supports both local dev and production
-    const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://nidigo-backend.onrender.com');
+    const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://ngo-finance-management-1.onrender.com');
     const fullUrl = url.startsWith('http') ? url : (apiBase + url);
     
     const response = await fetch(fullUrl, {
@@ -266,7 +266,8 @@ function initUserLoginPage() {
         }
 
         try {
-            const response = await fetch("/user/login", {
+            const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://ngo-finance-management-1.onrender.com');
+            const response = await fetch(apiBase + "/user/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password })
@@ -314,7 +315,8 @@ function initUserRegisterPage() {
         }
 
         try {
-            const response = await fetch("/user/register", {
+            const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://ngo-finance-management-1.onrender.com');
+            const response = await fetch(apiBase + "/user/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name, email, password })
