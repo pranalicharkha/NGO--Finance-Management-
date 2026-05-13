@@ -103,6 +103,11 @@ app.get("/user/dashboard-page", (req, res) => {
 });
 
 
+// Health check endpoint (for Render keep-alive pings)
+app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // Start Server
 const PORT = process.env.PORT || 3000;
 

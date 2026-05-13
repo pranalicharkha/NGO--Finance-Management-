@@ -4,9 +4,14 @@ services:
     env: node
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 18
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
       - key: DATABASE_PATH
         value: /data/finance_management.db
     disk:
