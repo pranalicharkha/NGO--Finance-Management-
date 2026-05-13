@@ -1537,23 +1537,26 @@ async function initUserDonationsPage() {
     };
 
     const buildDonationQuery = () => {
-        const params = new URLSearchParams({
-            userId: String(getUserId())
+        return new URLSearchParams({ userId: String(getUserId()) }).toString();
+    };
+
+    const applyFilters = (items) => {
+        const from = filterFields.dateFrom?.value;
+        const to = filterFields.dateTo?.value;
+        const projectId = filterFields.project?.value;
+        const minAmt = parseFloat(filterFields.minAmount?.value);
+        const maxAmt = parseFloat(filterFields.maxAmount?.value);
+        const status = filterFields.paymentStatus?.value;
+
+        return items.filter(item => {
+            if (from && item.date < from) return false;
+            if (to && item.date > to) return false;
+            if (projectId && String(item.project_id) !== String(projectId)) return false;
+            if (!isNaN(minAmt) && item.amount < minAmt) return false;
+            if (!isNaN(maxAmt) && item.amount > maxAmt) return false;
+            if (status && (item.payment_status || 'pending').toLowerCase() !== status.toLowerCase()) return false;
+            return true;
         });
-
-        const addParam = (key, value) => {
-            if (value !== undefined && value !== null && String(value).trim() !== "") {
-                params.set(key, String(value).trim());
-            }
-        };
-
-        addParam("dateFrom", filterFields.dateFrom?.value);
-        addParam("dateTo", filterFields.dateTo?.value);
-        addParam("projectId", filterFields.project?.value);
-        addParam("minAmount", filterFields.minAmount?.value);
-        addParam("maxAmount", filterFields.maxAmount?.value);
-
-        return params.toString();
     };
 
     const updateDonationPaymentStatus = async (item, paymentStatus) => {
@@ -1920,7 +1923,7 @@ async function initUserDonationsPage() {
     const loadDonationData = async () => {
         const data = await apiFetchJson(`/user/donations?${buildDonationQuery()}`);
         const raw = data.donations || [];
-        const donations = raw.map(d => ({
+        const allDonations = raw.map(d => ({
             id: d.id,
             project_id: d.project_id,
             amount: Number(d.amount || 0),
@@ -1939,20 +1942,21 @@ async function initUserDonationsPage() {
             donor_email: d.donor_email,
             anonymous: d.anonymous
         }));
-        donationCache = donations;
-        const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-        const supportedProjects = new Set(donations.map((item) => item.project_id || item.project_name).filter(Boolean));
-        const highestDonation = donations.reduce((max, item) => Math.max(max, Number(item.amount || 0)), 0);
-        const latestDonation = donations[0] || null;
+        donationCache = allDonations;
+        const filtered = applyFilters(allDonations);
+        const total = filtered.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const supportedProjects = new Set(filtered.map((item) => item.project_id || item.project_name).filter(Boolean));
+        const highestDonation = filtered.reduce((max, item) => Math.max(max, Number(item.amount || 0)), 0);
+        const latestDonation = filtered[0] || null;
 
         setText("donationTotal", formatCurrency(total));
         setText("donationProjects", String(supportedProjects.size));
         setText("donationLastDate", latestDonation ? formatDate(latestDonation.date) : "-");
         setText("donationHighest", formatCurrency(highestDonation));
-        renderDonationRows(donations);
-        renderDonationChart(donations, donationRangeSelect?.value || "monthly");
-        renderCategoryChart(donations);
-        return donations;
+        renderDonationRows(filtered);
+        renderDonationChart(filtered, donationRangeSelect?.value || "monthly");
+        renderCategoryChart(filtered);
+        return filtered;
     };
 
     tbody.addEventListener("click", (event) => {
