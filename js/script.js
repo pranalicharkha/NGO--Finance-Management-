@@ -1501,7 +1501,7 @@ async function initUserDonationsPage() {
     const buildDonationQuery = () => {
         const params = new URLSearchParams({
             type: "income",
-            projectLinked: "true",
+            projectLinked: "false",
             userId: String(getUserId())
         });
 

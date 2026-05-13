@@ -101,7 +101,7 @@ function buildDonationFilters(query, userId) {
 }
 
 function buildProjectDonationFilters(query) {
-    const clauses = ["COALESCE(p.payment_status, 'pending') = 'paid'"];
+    const clauses = ["COALESCE(p.payment_status, 'paid') = 'paid'"];
     const params = [];
 
     if (query.date && isValidDate(query.date)) {
@@ -438,7 +438,7 @@ router.get("/transactions", (req, res) => {
                     COALESCE(MAX(i.category), 'Donation') AS category,
                     COALESCE(MAX(i.source), 'Project funding') AS source,
                     COALESCE(MAX(i.payment_method), p.payment_method, 'bank_transfer') AS payment_method,
-                    p.target_amount AS amount,
+                    COALESCE(SUM(i.amount), 0) AS amount,
                     MAX(i.description) AS description,
                     p.id AS project_id,
                     ? AS user_id,
@@ -453,7 +453,7 @@ router.get("/transactions", (req, res) => {
                     p.start_date AS project_start_date,
                     p.end_date AS project_end_date
                 FROM projects p
-                INNER JOIN ngos n ON n.id = p.ngo_id
+                LEFT JOIN ngos n ON n.id = p.ngo_id
                 INNER JOIN users u ON u.id = ?
                 LEFT JOIN income i ON i.project_id = p.id AND i.user_id = ?
                 ${projectDonationFilters.whereSql}
@@ -498,7 +498,7 @@ router.get("/transactions", (req, res) => {
                 FROM income i
                 INNER JOIN users u ON u.id = i.user_id
                 INNER JOIN projects p ON p.id = i.project_id
-                INNER JOIN ngos n ON n.id = p.ngo_id
+                LEFT JOIN ngos n ON n.id = p.ngo_id
                 ${donationFilters.whereSql}
             `;
             incomeResults = db.prepare(sql).all(donationFilters.params);
