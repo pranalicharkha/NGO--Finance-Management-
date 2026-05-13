@@ -1,3 +1,6 @@
 node_modules/
 backend/.env
 .env
+
+database/finance_management.db
+database/finance_management.db.bak
