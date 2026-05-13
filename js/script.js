@@ -14,7 +14,11 @@ let donationCategoryChart;
 let userDonationTrendChart;
 
 async function apiFetchJson(url, options = {}) {
-    const response = await fetch(url, {
+    // Get API base URL - supports both local dev and production
+    const apiBase = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://nidigo-backend.onrender.com');
+    const fullUrl = url.startsWith('http') ? url : (apiBase + url);
+    
+    const response = await fetch(fullUrl, {
         cache: "no-store",
         ...options
     });

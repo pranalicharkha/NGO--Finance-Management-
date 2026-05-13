@@ -304,6 +304,23 @@ router.get("/transactions", (req, res) => {
     }
 });
 
+// Helper: build WHERE clause + params for date-filtered analytics queries
+function buildAnalyticsDateWhere(from, to) {
+    let where = "";
+    const params = [];
+    if (from && to) {
+        where = "WHERE date >= ? AND date <= ?";
+        params.push(from, to);
+    } else if (from) {
+        where = "WHERE date >= ?";
+        params.push(from);
+    } else if (to) {
+        where = "WHERE date <= ?";
+        params.push(to);
+    }
+    return { where, params };
+}
+
 router.get("/analytics/income-sources", (req, res) => {
     try {
         const { from, to } = req.query;

@@ -8,7 +8,17 @@ const db = require("./config/db");
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        process.env.FRONTEND_URL || "https://nidigo-frontend.vercel.app"
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept"]
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Serve static frontend files
