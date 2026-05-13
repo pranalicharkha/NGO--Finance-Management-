@@ -419,8 +419,8 @@ textarea.form-control{resize:vertical;min-height:90px}
 .badge-income{background:rgba(15,110,77,0.12);color:var(--primary);border-radius:20px;padding:3px 10px;font-weight:700;font-size:0.75rem;white-space:nowrap}
 .badge-expense{background:rgba(220,38,38,0.10);color:var(--danger);border-radius:20px;padding:3px 10px;font-weight:700;font-size:0.75rem;white-space:nowrap}
 .badge-cat{background:rgba(26,86,219,0.10);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:0.75rem;white-space:nowrap}
-.amount-income{color:var(--primary);font-weight:700;font-family:'JetBrains Mono',monospace;font-size:0.9rem}
-.amount-expense{color:var(--danger);font-weight:700;font-family:'JetBrains Mono',monospace;font-size:0.9rem}
+.amount-income{color:var(--primary);font-weight:700;font-family:'JetBrains Mono','Segoe UI Symbol','Noto Sans',monospace;font-size:0.9rem}
+.amount-expense{color:var(--danger);font-weight:700;font-family:'JetBrains Mono','Segoe UI Symbol','Noto Sans',monospace;font-size:0.9rem}
 
 /* Report Transparency Footer */
 .report-footer{background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border);padding:24px 28px;margin-top:16px;box-shadow:var(--shadow-xs);transition:background var(--dur),border-color var(--dur)}
