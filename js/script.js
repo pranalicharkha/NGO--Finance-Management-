@@ -883,86 +883,46 @@ async function initReportsPage() {
             return;
         }
 
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
         const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const container = document.createElement("div");
+        container.innerHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <h2 style="text-align: center; color: #0f6e4d; margin-bottom: 5px;">Transaction Ledger</h2>
+                <p style="text-align: center; color: #777; font-size: 14px; margin-bottom: 20px;">Generated On: ${dateStr} | Total Records: ${transactions.length}</p>
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background: #f1f5f9; color: #333;">
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Type</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Source / Title</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Category</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transactions.map(t => `
+                            <tr style="page-break-inside: avoid;">
+                                <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-transform: capitalize; color: ${t.type === 'income' ? '#0f6e4d' : '#dc2626'}">${t.type}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${t.source || t.title || "-"}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${t.category}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatCurrency(t.amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
 
-        // Header
-        doc.setFontSize(18);
-        doc.setTextColor(15, 110, 77);
-        doc.text('Transaction Ledger', doc.internal.pageSize.getWidth() / 2, 18, { align: 'center' });
-
-        doc.setFontSize(10);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`Generated On: ${dateStr}  |  Total Records: ${transactions.length}`, doc.internal.pageSize.getWidth() / 2, 26, { align: 'center' });
-
-        // Summary totals
-        const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount || 0), 0);
-        const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount || 0), 0);
-        const netBalance = totalIncome - totalExpense;
-
-        doc.setFontSize(9);
-        doc.setTextColor(60, 60, 60);
-        const pw = doc.internal.pageSize.getWidth();
-        doc.text(`Total Income: Rs ${totalIncome.toLocaleString('en-IN', {minimumFractionDigits:2})}`, 14, 34);
-        doc.text(`Total Expenses: Rs ${totalExpense.toLocaleString('en-IN', {minimumFractionDigits:2})}`, pw / 3 + 10, 34);
-        doc.setTextColor(netBalance >= 0 ? 15 : 220, netBalance >= 0 ? 110 : 38, netBalance >= 0 ? 77 : 38);
-        doc.text(`Net Balance: Rs ${netBalance.toLocaleString('en-IN', {minimumFractionDigits:2})}`, (pw / 3) * 2 + 10, 34);
-
-        // Table
-        const head = [['#', 'Date', 'Ref / ID', 'Type', 'Source / Title', 'Category', 'Project', 'Payment Method', 'Description', 'Amount']];
-        const body = transactions.map((t, i) => [
-            i + 1,
-            formatDate(t.date),
-            t.receipt_number || t.id || '-',
-            (t.type || '').charAt(0).toUpperCase() + (t.type || '').slice(1),
-            t.source || t.title || '-',
-            t.category || '-',
-            t.project_name || t.project_focus_area || '-',
-            formatPaymentMethod(t.payment_method),
-            t.description || '-',
-            `Rs ${Number(t.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}`
-        ]);
-
-        doc.autoTable({
-            startY: 40,
-            head: head,
-            body: body,
-            styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
-            headStyles: { fillColor: [15, 110, 77], textColor: 255, fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [241, 245, 249] },
-            columnStyles: {
-                0: { cellWidth: 8 },
-                1: { cellWidth: 22 },
-                2: { cellWidth: 16 },
-                3: { cellWidth: 18 },
-                4: { cellWidth: 35 },
-                5: { cellWidth: 25 },
-                6: { cellWidth: 30 },
-                7: { cellWidth: 28 },
-                8: { cellWidth: 45 },
-                9: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body' && data.column.index === 3) {
-                    const val = (data.cell.raw || '').toLowerCase();
-                    data.cell.styles.textColor = val === 'income' ? [15, 110, 77] : [220, 38, 38];
-                }
-            },
-            margin: { left: 10, right: 10 }
-        });
-
-        // Footer on each page
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8);
-            doc.setTextColor(160, 160, 160);
-            doc.text(`Page ${i} of ${pageCount} — Nidigo Finance System`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
-        }
-
-        doc.save(`Transaction_Ledger_${new Date().toISOString().split('T')[0]}.pdf`);
+        const opt = {
+            margin:       10,
+            filename:     `Transaction_Ledger_${new Date().toISOString().split('T')[0]}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['css', 'legacy'] }
+        };
+        html2pdf().set(opt).from(container).save();
     });
 
     loadReports();
@@ -2877,7 +2837,7 @@ window.generatePDF = async function() {
 
     const reportContainer = document.createElement("div");
     reportContainer.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; width: 800px; max-width: 100%; margin: auto;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: auto;">
             <!-- 1. Header -->
             <div style="text-align: center; border-bottom: 3px solid #0f6e4d; padding-bottom: 20px; margin-bottom: 20px;">
                 <h1 style="margin: 0; color: #0f6e4d; font-size: 28px;">Nidigo Finance System</h1>
@@ -2980,10 +2940,11 @@ window.generatePDF = async function() {
         filename:     `NGO_Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
     };
 
-    html2pdf().set(opt).from(reportContainer.innerHTML).save();
+    html2pdf().set(opt).from(reportContainer).save();
 };
 
 document.addEventListener("DOMContentLoaded", () => {
