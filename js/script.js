@@ -1165,14 +1165,22 @@ async function initUserDashboardPage() {
 
     if (!recentContainer) return;
 
-    try {
-        const [projectData, donationData] = await Promise.all([
-            apiFetchJson("/user/projects"),
-            apiFetchJson(`/user/transactions?type=income&projectLinked=true&userId=${getUserId()}`)
-        ]);
+    let allProjects = [];
+    let donations = [];
 
-        const donations = donationData.transactions || [];
-        const allProjects = projectData.projects || [];
+    try {
+        const projectData = await apiFetchJson("/user/projects");
+        allProjects = projectData.projects || [];
+    } catch (e) {
+        console.error("Failed to load projects for dashboard:", e);
+    }
+
+    try {
+        const donationData = await apiFetchJson(`/user/transactions?type=income&projectLinked=true&userId=${getUserId()}`);
+        donations = donationData.transactions || [];
+    } catch (e) {
+        console.error("Failed to load donations for dashboard:", e);
+    }
         const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(String(project.status || "").toLowerCase()));
         const totalDonatedByUser = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const donationProjectMap = donations.reduce((map, item) => {
