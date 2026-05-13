@@ -424,17 +424,45 @@ function renderRecentActivity(transactions = []) {
         const isIncome = item.type === "income";
         return `
             <div class="activity-item">
-                <div class="act-icon ${isIncome ? "badge-income" : "badge-expense"}">
-                    <i class="bi ${isIncome ? "bi-arrow-down-left" : "bi-arrow-up-right"}"></i>
-                </div>
                 <div class="act-info">
                     <div>${item.title}</div>
-                    <div>${formatDate(item.date)} â€¢ ${item.category}</div>
+                    <div>${formatDate(item.date)} | ${item.category}</div>
                 </div>
                 <div class="${isIncome ? "pos" : "neg"}">${isIncome ? "+" : "-"}${formatCurrency(item.amount)}</div>
             </div>
         `;
     }).join("");
+}
+
+function exportElementAsPdf(container, options) {
+    if (!container || typeof html2pdf === "undefined") return Promise.resolve();
+
+    // Render inside an invisible in-viewport host (offscreen elements can produce blank PDFs).
+    const host = document.createElement("div");
+    host.style.position = "fixed";
+    host.style.left = "0";
+    host.style.top = "0";
+    host.style.width = "210mm";
+    host.style.maxHeight = "100vh";
+    host.style.overflow = "auto";
+    host.style.opacity = "0.01";
+    host.style.pointerEvents = "none";
+    host.style.background = "#ffffff";
+    host.style.zIndex = "9999";
+
+    container.style.width = "190mm";
+    container.style.margin = "0 auto";
+    container.style.background = "#ffffff";
+    host.appendChild(container);
+    document.body.appendChild(host);
+
+    return html2pdf()
+        .set(options)
+        .from(container)
+        .save()
+        .finally(() => {
+            host.remove();
+        });
 }
 
 async function initDashboard() {
@@ -872,57 +900,111 @@ async function initReportsPage() {
     btnFilter?.addEventListener("click", loadReports);
     btnReset?.addEventListener("click", () => { filterType.value = "all"; filterMonth.value = ""; filterSearch.value = ""; loadReports(); });
     btnExport?.addEventListener("click", async () => {
-        if (typeof html2pdf === 'undefined') {
+        const jsPdf = window.jspdf?.jsPDF;
+        if (!jsPdf) {
             alert("PDF generator is still loading.");
             return;
         }
-        
+
         const transactions = getFilteredTransactions(reportTransactionsCache);
         if (!transactions.length) {
             alert("No data to export.");
             return;
         }
 
-        const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-        const container = document.createElement("div");
-        container.innerHTML = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-                <h2 style="text-align: center; color: #0f6e4d; margin-bottom: 5px;">Transaction Ledger</h2>
-                <p style="text-align: center; color: #777; font-size: 14px; margin-bottom: 20px;">Generated On: ${dateStr} | Total Records: ${transactions.length}</p>
-                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                    <thead>
-                        <tr style="background: #f1f5f9; color: #333;">
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Type</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Source / Title</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Category</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${transactions.map(t => `
-                            <tr style="page-break-inside: avoid;">
-                                <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; text-transform: capitalize; color: ${t.type === 'income' ? '#0f6e4d' : '#dc2626'}">${t.type}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${t.source || t.title || "-"}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${t.category}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatCurrency(t.amount)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+        const doc = new jsPdf({ unit: "mm", format: "a4", orientation: "portrait" });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const tableWidth = pageWidth - margin * 2;
+        const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-        const opt = {
-            margin:       10,
-            filename:     `Transaction_Ledger_${new Date().toISOString().split('T')[0]}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak:    { mode: ['css', 'legacy'] }
+        const colWidths = {
+            date: 24,
+            type: 18,
+            source: 60,
+            category: 50,
+            amount: tableWidth - (24 + 18 + 60 + 50)
         };
-        html2pdf().set(opt).from(container).save();
+
+        const drawHeader = (startY) => {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
+            doc.text("Transaction Ledger", margin, startY);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text(`Generated On: ${dateStr}`, margin, startY + 6);
+            doc.text(`Total Records: ${transactions.length}`, margin, startY + 11);
+            return startY + 16;
+        };
+
+        const drawTableHead = (y) => {
+            doc.setFillColor(241, 245, 249);
+            doc.rect(margin, y, tableWidth, 8, "F");
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            let x = margin + 1.5;
+            doc.text("Date", x, y + 5.5);
+            x += colWidths.date;
+            doc.text("Type", x, y + 5.5);
+            x += colWidths.type;
+            doc.text("Source / Title", x, y + 5.5);
+            x += colWidths.source;
+            doc.text("Category", x, y + 5.5);
+            x += colWidths.category;
+            doc.text("Amount", x + colWidths.amount - 2, y + 5.5, { align: "right" });
+            return y + 8;
+        };
+
+        let y = drawHeader(14);
+        y = drawTableHead(y);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+
+        for (const t of transactions) {
+            const values = {
+                date: String(formatDate(t.date) || "-"),
+                type: String(t.type || "-").toUpperCase(),
+                source: String(t.source || t.title || "-"),
+                category: String(t.category || "-"),
+                amount: String(formatCurrency(t.amount || 0))
+            };
+
+            const dateLines = doc.splitTextToSize(values.date, colWidths.date - 3);
+            const typeLines = doc.splitTextToSize(values.type, colWidths.type - 3);
+            const sourceLines = doc.splitTextToSize(values.source, colWidths.source - 3);
+            const categoryLines = doc.splitTextToSize(values.category, colWidths.category - 3);
+            const amountLines = doc.splitTextToSize(values.amount, colWidths.amount - 3);
+
+            const maxLines = Math.max(dateLines.length, typeLines.length, sourceLines.length, categoryLines.length, amountLines.length);
+            const rowHeight = Math.max(7, maxLines * 4 + 2);
+
+            if (y + rowHeight > pageHeight - margin) {
+                doc.addPage();
+                y = drawHeader(14);
+                y = drawTableHead(y);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8.5);
+            }
+
+            doc.setDrawColor(220, 220, 220);
+            doc.rect(margin, y, tableWidth, rowHeight);
+
+            let x = margin + 1.5;
+            doc.text(dateLines, x, y + 4.5);
+            x += colWidths.date;
+            doc.text(typeLines, x, y + 4.5);
+            x += colWidths.type;
+            doc.text(sourceLines, x, y + 4.5);
+            x += colWidths.source;
+            doc.text(categoryLines, x, y + 4.5);
+            x += colWidths.category;
+            doc.text(amountLines, x + colWidths.amount - 2, y + 4.5, { align: "right" });
+
+            y += rowHeight;
+        }
+
+        doc.save(`Transaction_Ledger_${new Date().toISOString().split("T")[0]}.pdf`);
     });
 
     loadReports();
@@ -2944,7 +3026,7 @@ window.generatePDF = async function() {
         pagebreak:    { mode: ['css', 'legacy'] }
     };
 
-    html2pdf().set(opt).from(reportContainer).save();
+    await exportElementAsPdf(reportContainer, opt);
 };
 
 document.addEventListener("DOMContentLoaded", () => {
