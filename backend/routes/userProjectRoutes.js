@@ -179,7 +179,7 @@ router.post("/projects/:id/donate", (req, res) => {
         const donationSql = `
             INSERT INTO project_donations 
             (project_id, user_id, amount, donation_date, donor_name, donor_email, payment_method, message, anonymous) 
-            VALUES (?, ?, ?, CURDATE(), ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, date('now'), ?, ?, ?, ?, ?)
         `;
 
         db.query(donationSql, [
