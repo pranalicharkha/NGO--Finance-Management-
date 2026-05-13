@@ -1181,6 +1181,8 @@ async function initUserDashboardPage() {
     } catch (e) {
         console.error("Failed to load donations for dashboard:", e);
     }
+
+    try {
         const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(String(project.status || "").toLowerCase()));
         const totalDonatedByUser = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const donationProjectMap = donations.reduce((map, item) => {
