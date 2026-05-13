@@ -243,7 +243,7 @@ router.put("/income/:id", (req, res) => {
     const projectId = req.body.project_id ? Number(req.body.project_id) : null;
     const amount = normalizeAmount(req.body.amount);
 
-    if (!incomeId || !userId || !projectId || !isValidDate(date) || !category || !source || !amount) {
+    if (!incomeId || userId === undefined || userId === null || !projectId || !isValidDate(date) || !category || !source || !amount) {
         return res.status(400).json({
             success: false,
             message: "Valid income id, user id, project, date, category, source, and amount are required"
@@ -258,48 +258,54 @@ router.put("/income/:id", (req, res) => {
         });
     }
 
-    db.query(
-        `
-        UPDATE income
-        SET date = ?, category = ?, source = ?, payment_method = ?, amount = ?, description = ?, project_id = ?
-        WHERE id = ? AND user_id = ?
-        `,
-        [date, category, source, paymentMethod, amount, description, projectId, incomeId, userId],
-        (err, result) => {
-            if (err) {
-                console.log("Income Update Error:", err);
-                return res.status(500).json({
-                    success: false,
-                    message: "Failed to update income"
-                });
-            }
+    const isAdmin = userId === 0;
+    const updateSql = isAdmin
+        ? `UPDATE income SET date = ?, category = ?, source = ?, payment_method = ?, amount = ?, description = ?, project_id = ? WHERE id = ?`
+        : `UPDATE income SET date = ?, category = ?, source = ?, payment_method = ?, amount = ?, description = ?, project_id = ? WHERE id = ? AND user_id = ?`;
+    const updateParams = isAdmin
+        ? [date, category, source, paymentMethod, amount, description, projectId, incomeId]
+        : [date, category, source, paymentMethod, amount, description, projectId, incomeId, userId];
 
-            if (!result.affectedRows) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Income record not found"
-                });
-            }
-
-            res.json({
-                success: true,
-                message: "Income updated successfully"
+    db.query(updateSql, updateParams, (err, result) => {
+        if (err) {
+            console.log("Income Update Error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to update income"
             });
         }
-    );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({
+                success: false,
+                message: "Income record not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Income updated successfully"
+        });
+    });
 });
 
 router.delete("/income/:id", (req, res) => {
     const incomeId = Number(req.params.id);
     const userId = Number(req.query.userId);
-    if (!incomeId || !userId) {
+    if (!incomeId || userId === undefined || userId === null || isNaN(userId)) {
         return res.status(400).json({
             success: false,
             message: "Valid income id and user id are required"
         });
     }
 
-    db.query("DELETE FROM income WHERE id = ? AND user_id = ?", [incomeId, userId], (err, result) => {
+    const isAdmin = userId === 0;
+    const deleteSql = isAdmin
+        ? "DELETE FROM income WHERE id = ?"
+        : "DELETE FROM income WHERE id = ? AND user_id = ?";
+    const deleteParams = isAdmin ? [incomeId] : [incomeId, userId];
+
+    db.query(deleteSql, deleteParams, (err, result) => {
         if (err) {
             console.log("Income Delete Error:", err);
             return res.status(500).json({
@@ -332,55 +338,61 @@ router.put("/expense/:id", (req, res) => {
     const description = cleanText(req.body.description);
     const amount = normalizeAmount(req.body.amount);
 
-    if (!expenseId || !userId || !isValidDate(date) || !category || !title || !amount) {
+    if (!expenseId || userId === undefined || userId === null || !isValidDate(date) || !category || !title || !amount) {
         return res.status(400).json({
             success: false,
             message: "Valid expense id, user id, date, category, title, and amount are required"
         });
     }
 
-    db.query(
-        `
-        UPDATE expense
-        SET date = ?, category = ?, title = ?, payment_method = ?, amount = ?, description = ?
-        WHERE id = ? AND user_id = ?
-        `,
-        [date, category, title, paymentMethod, amount, description, expenseId, userId],
-        (err, result) => {
-            if (err) {
-                console.log("Expense Update Error:", err);
-                return res.status(500).json({
-                    success: false,
-                    message: "Failed to update expense"
-                });
-            }
+    const isAdmin = userId === 0;
+    const updateSql = isAdmin
+        ? `UPDATE expense SET date = ?, category = ?, title = ?, payment_method = ?, amount = ?, description = ? WHERE id = ?`
+        : `UPDATE expense SET date = ?, category = ?, title = ?, payment_method = ?, amount = ?, description = ? WHERE id = ? AND user_id = ?`;
+    const updateParams = isAdmin
+        ? [date, category, title, paymentMethod, amount, description, expenseId]
+        : [date, category, title, paymentMethod, amount, description, expenseId, userId];
 
-            if (!result.affectedRows) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Expense record not found"
-                });
-            }
-
-            res.json({
-                success: true,
-                message: "Expense updated successfully"
+    db.query(updateSql, updateParams, (err, result) => {
+        if (err) {
+            console.log("Expense Update Error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to update expense"
             });
         }
-    );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({
+                success: false,
+                message: "Expense record not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Expense updated successfully"
+        });
+    });
 });
 
 router.delete("/expense/:id", (req, res) => {
     const expenseId = Number(req.params.id);
     const userId = Number(req.query.userId);
-    if (!expenseId || !userId) {
+    if (!expenseId || userId === undefined || userId === null || isNaN(userId)) {
         return res.status(400).json({
             success: false,
             message: "Valid expense id and user id are required"
         });
     }
 
-    db.query("DELETE FROM expense WHERE id = ? AND user_id = ?", [expenseId, userId], (err, result) => {
+    const isAdmin = userId === 0;
+    const deleteSql = isAdmin
+        ? "DELETE FROM expense WHERE id = ?"
+        : "DELETE FROM expense WHERE id = ? AND user_id = ?";
+    const deleteParams = isAdmin ? [expenseId] : [expenseId, userId];
+
+    db.query(deleteSql, deleteParams, (err, result) => {
         if (err) {
             console.log("Expense Delete Error:", err);
             return res.status(500).json({
