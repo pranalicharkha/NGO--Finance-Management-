@@ -652,12 +652,21 @@ async function initDashboard() {
     await loadDashboardAnalytics('all');
     initSummaryFilters();
 
-    // Auto-refresh every 60 s
-    setInterval(() => {
+    // Auto-refresh every 30 s
+    setInterval(async () => {
+        try {
+            const data = await apiFetchJson("/admin/dashboard");
+            setText("totalIncome",  formatCurrency(data.totalIncome));
+            setText("totalExpense", formatCurrency(data.totalExpense));
+            setText("totalBalance", formatCurrency(data.balance));
+            setText("totalUsers",   String(data.totalUsers || 0));
+            renderDashboardCharts(data);
+            renderRecentActivity(data.recentTransactions || []);
+        } catch (e) { console.error("Dashboard auto-refresh error:", e); }
         const activeBtn = document.querySelector('.summary-filter-btn.active');
         const range = activeBtn?.dataset.range || 'all';
         if (range !== 'custom') loadDashboardAnalytics(range);
-    }, 60000);
+    }, 30000);
 }
 
 async function initIncomePage() {
@@ -1510,8 +1519,6 @@ async function initUserDonationsPage() {
 
     const buildDonationQuery = () => {
         const params = new URLSearchParams({
-            type: "income",
-            projectLinked: "false",
             userId: String(getUserId())
         });
 
@@ -1524,7 +1531,6 @@ async function initUserDonationsPage() {
         addParam("dateFrom", filterFields.dateFrom?.value);
         addParam("dateTo", filterFields.dateTo?.value);
         addParam("projectId", filterFields.project?.value);
-        addParam("paymentStatus", filterFields.paymentStatus?.value);
         addParam("minAmount", filterFields.minAmount?.value);
         addParam("maxAmount", filterFields.maxAmount?.value);
 
@@ -1893,8 +1899,27 @@ async function initUserDonationsPage() {
     };
 
     const loadDonationData = async () => {
-        const data = await apiFetchJson(`/user/transactions?${buildDonationQuery()}`);
-        const donations = data.transactions || [];
+        const data = await apiFetchJson(`/user/donations?${buildDonationQuery()}`);
+        const raw = data.donations || [];
+        const donations = raw.map(d => ({
+            id: d.id,
+            project_id: d.project_id,
+            amount: Number(d.amount || 0),
+            date: normalizeDateValue(d.donation_date),
+            payment_method: d.payment_method,
+            payment_status: d.payment_status || 'pending',
+            project_name: d.project_name,
+            project_focus_area: d.project_focus_area,
+            project_status: d.project_status,
+            project_budget: Number(d.project_budget || 0),
+            project_start_date: d.project_start_date,
+            project_end_date: d.project_end_date,
+            category: d.project_category || 'Donation',
+            description: d.message || '',
+            donor_name: d.donor_name,
+            donor_email: d.donor_email,
+            anonymous: d.anonymous
+        }));
         donationCache = donations;
         const total = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const supportedProjects = new Set(donations.map((item) => item.project_id || item.project_name).filter(Boolean));

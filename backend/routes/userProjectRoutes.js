@@ -254,7 +254,14 @@ router.get("/donations", (req, res) => {
     }
 
     const sql = `
-        SELECT pd.*, p.name as project_name, p.category as project_category
+        SELECT pd.*,
+               p.name as project_name,
+               p.category as project_category,
+               p.focus_area as project_focus_area,
+               p.status as project_status,
+               p.target_amount as project_budget,
+               p.start_date as project_start_date,
+               p.end_date as project_end_date
         FROM project_donations pd
         INNER JOIN projects p ON pd.project_id = p.id
         WHERE pd.user_id = ?
