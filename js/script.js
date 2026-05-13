@@ -38,7 +38,18 @@ function notifyProjectDataChanged() {
 }
 
 function initProjectDataRefreshWatcher() {
-    const watchedPages = ["user-dashboard", "user-donations", "user-calendar", "user-transparency"];
+    const watchedPages = [
+        "dashboard",
+        "calendar",
+        "reports",
+        "projects",
+        "user-dashboard",
+        "user-donations",
+        "user-calendar",
+        "user-transparency",
+        "user-profile",
+        "user-projects"
+    ];
     const page = document.body.dataset.page;
     if (!watchedPages.includes(page)) return;
 
@@ -82,6 +93,17 @@ function formatLocalDateValue(date) {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+}
+
+function isFutureDate(value) {
+    if (!value) return false;
+    return value > formatLocalDateValue(new Date());
+}
+
+function applyMaxTodayDate(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.max = formatLocalDateValue(new Date());
 }
 
 function getUserId() {
@@ -642,6 +664,7 @@ async function initDashboard() {
 async function initIncomePage() {
     const form = document.getElementById("incomeForm");
     if (!form) return;
+    applyMaxTodayDate("incDate");
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const payload = {
@@ -655,6 +678,10 @@ async function initIncomePage() {
         };
         if (!payload.date || !payload.category || !payload.source || !payload.amount) {
             alert("Please fill all required fields.");
+            return;
+        }
+        if (isFutureDate(payload.date)) {
+            alert("Future dates are not allowed for income entries.");
             return;
         }
         try {
@@ -674,6 +701,7 @@ async function initIncomePage() {
 async function initExpensePage() {
     const form = document.getElementById("expenseForm");
     if (!form) return;
+    applyMaxTodayDate("expDate");
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const payload = {
@@ -687,6 +715,10 @@ async function initExpensePage() {
         };
         if (!payload.date || !payload.category || !payload.title || !payload.amount) {
             alert("Please fill all required fields.");
+            return;
+        }
+        if (isFutureDate(payload.date)) {
+            alert("Future dates are not allowed for expense entries.");
             return;
         }
         try {
@@ -3845,6 +3877,7 @@ async function initUserProjectsPage() {
             
             // Refresh projects to show updated progress
             fetchProjects();
+            notifyProjectDataChanged();
             
             // Reset form
             donationForm.reset();

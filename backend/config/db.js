@@ -168,6 +168,14 @@ const initSchema = () => {
         db.exec("ALTER TABLE project_donations ADD COLUMN payment_status TEXT DEFAULT 'paid'");
     }
 
+    if (!columnExists("income", "user_id")) {
+        db.exec("ALTER TABLE income ADD COLUMN user_id INTEGER");
+    }
+
+    if (!columnExists("income", "project_id")) {
+        db.exec("ALTER TABLE income ADD COLUMN project_id INTEGER");
+    }
+
     db.exec(`
         UPDATE project_donations
         SET payment_status = COALESCE(NULLIF(payment_status, ''), 'paid')
@@ -219,6 +227,39 @@ const initSchema = () => {
         ), 0)
     `);
 
+    db.exec(`
+        INSERT INTO income (
+            user_id,
+            date,
+            category,
+            source,
+            payment_method,
+            amount,
+            description,
+            project_id
+        )
+        SELECT
+            pd.user_id,
+            pd.donation_date,
+            COALESCE(NULLIF(p.focus_area, ''), NULLIF(p.category, ''), 'Donation'),
+            COALESCE(NULLIF(pd.donor_name, ''), NULLIF(p.project_name, ''), NULLIF(p.name, ''), 'Project Donation'),
+            COALESCE(NULLIF(pd.payment_method, ''), NULLIF(p.payment_method, ''), 'bank_transfer'),
+            pd.amount,
+            pd.message,
+            pd.project_id
+        FROM project_donations pd
+        INNER JOIN projects p ON p.id = pd.project_id
+        WHERE pd.amount IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM income i
+              WHERE COALESCE(i.project_id, -1) = COALESCE(pd.project_id, -1)
+                AND COALESCE(i.user_id, -1) = COALESCE(pd.user_id, -1)
+                AND i.amount = pd.amount
+                AND i.date = pd.donation_date
+          )
+    `);
+
     db.exec("UPDATE projects SET location = NULL WHERE TRIM(COALESCE(location, '')) IN ('0.0', '0', '')");
 
     if (!columnExists("users", "phone")) {
@@ -236,14 +277,6 @@ const initSchema = () => {
     if (!columnExists("users", "created_at")) {
         db.exec("ALTER TABLE users ADD COLUMN created_at TEXT");
         db.exec("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
-    }
-
-    if (!columnExists("income", "user_id")) {
-        db.exec("ALTER TABLE income ADD COLUMN user_id INTEGER");
-    }
-
-    if (!columnExists("income", "project_id")) {
-        db.exec("ALTER TABLE income ADD COLUMN project_id INTEGER");
     }
 
     if (!columnExists("expense", "user_id")) {
