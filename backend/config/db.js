@@ -165,12 +165,12 @@ const initSchema = () => {
     `);
 
     if (!columnExists("project_donations", "payment_status")) {
-        db.exec("ALTER TABLE project_donations ADD COLUMN payment_status TEXT DEFAULT 'paid'");
+        db.exec("ALTER TABLE project_donations ADD COLUMN payment_status TEXT DEFAULT 'pending'");
     }
 
     db.exec(`
         UPDATE project_donations
-        SET payment_status = COALESCE(NULLIF(payment_status, ''), 'paid')
+        SET payment_status = COALESCE(NULLIF(payment_status, ''), 'pending')
     `);
 
     db.exec(`

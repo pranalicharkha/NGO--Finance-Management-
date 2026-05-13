@@ -184,8 +184,8 @@ router.post("/projects/:id/donate", (req, res) => {
         // Insert donation record
         const donationSql = `
             INSERT INTO project_donations 
-            (project_id, user_id, amount, donation_date, donor_name, donor_email, payment_method, message, anonymous) 
-            VALUES (?, ?, ?, date('now'), ?, ?, ?, ?, ?)
+            (project_id, user_id, amount, donation_date, donor_name, donor_email, payment_method, message, anonymous, payment_status) 
+            VALUES (?, ?, ?, date('now'), ?, ?, ?, ?, ?, ?)
         `;
 
         db.query(donationSql, [
@@ -196,7 +196,8 @@ router.post("/projects/:id/donate", (req, res) => {
             donor_email.trim(), 
             payment_method, 
             message ? message.trim() : null, 
-            Number(anonymous)
+            Number(anonymous),
+            'pending'
         ], (err, result) => {
             if (err) {
                 console.log(err);

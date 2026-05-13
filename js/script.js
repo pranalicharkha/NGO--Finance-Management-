@@ -1533,6 +1533,9 @@ async function initUserDonationsPage() {
                         <button type="button" class="btn-filter" data-action="download-receipt" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--primary);">
                             <i class="bi bi-file-earmark-pdf me-1"></i>Download Receipt
                         </button>
+                        <button type="button" class="btn-filter" data-action="delete-donation" data-id="${item.id}" style="padding:6px 10px;font-size:0.75rem;background:var(--danger);">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -1784,6 +1787,70 @@ async function initUserDonationsPage() {
         doc.save(`${receiptNo}-receipt.pdf`);
     };
 
+    const deleteDonation = async (item) => {
+        if (!window.confirm(`Delete donation #${item.id}? This action cannot be undone.`)) return;
+        await apiFetchJson(`/user/income/${item.id}?userId=${getUserId()}`, { method: "DELETE" });
+        setMessage(`Donation #${item.id} deleted successfully.`, "success");
+        await loadDonationData();
+    };
+
+    const exportDonationHistoryAsPdf = () => {
+        const jsPdf = window.jspdf?.jsPDF;
+        if (!jsPdf) {
+            setMessage("PDF export library is still loading. Please try again in a moment.", "error");
+            return;
+        }
+
+        const doc = new jsPdf({ unit: "pt", format: "a4" });
+        const title = "Nidigo Donation History";
+        doc.setFontSize(16);
+        doc.text(title, 40, 40);
+        doc.setFontSize(10);
+        doc.text(`Generated ${formatDate(new Date().toISOString().slice(0, 10))}`, 40, 58);
+
+        const columns = ["Donation ID", "Project Name", "Amount", "Donation Date", "Payment Method", "Payment Status"];
+        const rows = donationCache.map((item) => [
+            `#${item.id}`,
+            item.project_name || "General NGO Fund",
+            formatCurrency(item.amount),
+            formatDate(item.date),
+            formatPaymentMethod(item.payment_method),
+            formatPaymentStatus(item.payment_status || "pending")
+        ]);
+
+        if (rows.length === 0) {
+            setMessage("No donation records are available to export.", "info");
+            return;
+        }
+
+        if (typeof doc.autoTable === "function") {
+            doc.autoTable({
+                head: [columns],
+                body: rows,
+                startY: 72,
+                styles: { fontSize: 9, cellPadding: 4 },
+                headStyles: { fillColor: [15, 110, 77], textColor: 255, halign: "center" },
+                theme: "grid",
+                margin: { left: 40, right: 40 }
+            });
+        } else {
+            let y = 72;
+            doc.setFontSize(10);
+            doc.text(columns.join(" | "), 40, y);
+            y += 18;
+            rows.forEach((row) => {
+                if (y > doc.internal.pageSize.getHeight() - 40) {
+                    doc.addPage();
+                    y = 40;
+                }
+                doc.text(row.map((cell) => String(cell)).join(" | "), 40, y);
+                y += 14;
+            });
+        }
+
+        doc.save(`donation-history-${new Date().toISOString().slice(0, 10)}.pdf`);
+    };
+
     const loadDonationData = async () => {
         const data = await apiFetchJson(`/user/transactions?${buildDonationQuery()}`);
         const donations = data.transactions || [];
@@ -1816,6 +1883,13 @@ async function initUserDonationsPage() {
 
         if (button.dataset.action === "download-receipt") {
             downloadReceipt(item);
+        }
+
+        if (button.dataset.action === "delete-donation") {
+            deleteDonation(item).catch((error) => {
+                console.error("Donation delete error:", error);
+                setMessage(error.message || "Unable to delete donation.", "error");
+            });
         }
 
         if (button.dataset.action === "toggle-payment-status") {
@@ -1871,20 +1945,7 @@ async function initUserDonationsPage() {
         await loadDonationData();
 
         exportButton?.addEventListener("click", () => {
-            const rows = [["Donation ID", "Project Name", "Amount Donated", "Donation Date", "Payment Method", "Payment Status", "Category", "Note"]];
-            donationCache.forEach((item) => {
-                rows.push([
-                    item.id,
-                    item.project_name || "General NGO Fund",
-                    item.amount,
-                    normalizeDateValue(item.date),
-                    formatPaymentMethod(item.payment_method),
-                    formatPaymentStatus(item.payment_status || "pending"),
-                    item.category || "",
-                    item.description || ""
-                ]);
-            });
-            exportRowsAsCsv("donation-history.csv", rows);
+            exportDonationHistoryAsPdf();
         });
     } catch (error) {
         console.error("Donation history error:", error);
@@ -2149,11 +2210,18 @@ async function initUserCalendarPage() {
     let projects = [];
 
     try {
-        const [txData, projectData] = await Promise.all([
-            apiFetchJson(`/user/transactions?type=income&userId=${getUserId()}`),
+        const [donationData, projectData] = await Promise.all([
+            apiFetchJson(`/user/donations?userId=${getUserId()}`),
             apiFetchJson("/user/projects")
         ]);
-        donations = txData.transactions || [];
+        donations = (donationData.donations || []).map((donation) => ({
+            ...donation,
+            date: normalizeDateValue(donation.donation_date || donation.date),
+            category: donation.project_category || donation.category || "Donation",
+            source: donation.project_name || donation.source || "Donation",
+            description: donation.message || donation.description || "",
+            amount: Number(donation.amount || 0)
+        }));
         projects = projectData.projects || [];
     } catch (error) {
         console.error("User calendar data error:", error);
