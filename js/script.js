@@ -1185,8 +1185,27 @@ async function initUserDashboardPage() {
     }
 
     try {
-        const donationData = await apiFetchJson(`/user/transactions?type=income&projectLinked=true&userId=${getUserId()}`);
-        donations = donationData.transactions || [];
+        const donationData = await apiFetchJson(`/user/donations?userId=${getUserId()}`);
+        const raw = donationData.donations || [];
+        donations = raw.map(d => ({
+            id: d.id,
+            project_id: d.project_id,
+            amount: Number(d.amount || 0),
+            date: normalizeDateValue(d.donation_date),
+            payment_method: d.payment_method,
+            payment_status: d.payment_status || 'pending',
+            project_name: d.project_name,
+            project_focus_area: d.project_focus_area,
+            project_status: d.project_status,
+            project_budget: Number(d.project_budget || 0),
+            project_start_date: d.project_start_date,
+            project_end_date: d.project_end_date,
+            category: d.project_category || 'Donation',
+            description: d.message || '',
+            donor_name: d.donor_name,
+            donor_email: d.donor_email,
+            anonymous: d.anonymous
+        }));
     } catch (e) {
         console.error("Failed to load donations for dashboard:", e);
     }
@@ -1201,11 +1220,11 @@ async function initUserDashboardPage() {
             if (!map[key]) {
                 map[key] = {
                     project_id: item.project_id,
-                    project_name: item.project_name || item.source || "Project",
+                    project_name: item.project_name || "Project",
                     project_focus_area: item.project_focus_area || item.category || "General",
                     project_status: item.project_status || "active",
-                    project_payment_method: item.project_payment_method || item.payment_method || null,
-                    project_payment_status: item.project_payment_status || "pending",
+                    project_payment_method: item.payment_method || null,
+                    project_payment_status: item.payment_status || "pending",
                     total_amount: 0,
                     donation_count: 0,
                     latest_date: item.date
@@ -1216,8 +1235,8 @@ async function initUserDashboardPage() {
             map[key].donation_count += 1;
             if (normalizeDateValue(item.date) >= normalizeDateValue(map[key].latest_date)) {
                 map[key].latest_date = item.date;
-                map[key].project_payment_status = item.project_payment_status || map[key].project_payment_status;
-                map[key].project_payment_method = item.project_payment_method || item.payment_method || map[key].project_payment_method;
+                map[key].project_payment_status = item.payment_status || map[key].project_payment_status;
+                map[key].project_payment_method = item.payment_method || map[key].project_payment_method;
                 map[key].project_status = item.project_status || map[key].project_status;
             }
 
