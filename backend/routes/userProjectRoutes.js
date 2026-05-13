@@ -190,7 +190,7 @@ router.post("/projects/:id/donate", (req, res) => {
             donor_email.trim(), 
             payment_method, 
             message ? message.trim() : null, 
-            anonymous
+            Number(anonymous)
         ], (err, result) => {
             if (err) {
                 console.log(err);

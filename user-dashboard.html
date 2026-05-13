@@ -68,9 +68,9 @@
           <div class="card-icon" style="background:rgba(217,119,6,0.12);color:var(--gold)">
             <i class="bi bi-cash-stack"></i>
           </div>
-          <div class="card-label">Total Budget</div>
+          <div class="card-label">My Donations</div>
           <div class="card-value" id="userTotalBudget" style="color:var(--gold)">Rs 0.00</div>
-          <div class="card-trend"><i class="bi bi-wallet2"></i> Combined budget across all projects</div>
+          <div class="card-trend"><i class="bi bi-wallet2"></i> Total amount you have donated</div>
         </div>
       </div>
       <div class="col-12 col-sm-6 col-xl-4">
@@ -92,12 +92,12 @@
           <div class="chart-header">
             <div>
               <div class="chart-title">Budget by Focus Area</div>
-              <div class="chart-subtitle">How budget is distributed across project categories</div>
+              <div class="chart-subtitle">How project funding goals are distributed across categories</div>
             </div>
             <span class="chart-badge">Live</span>
           </div>
           <div style="height:300px;position:relative;"><canvas id="userPieChart"></canvas></div>
-          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No projects yet. Add projects from the <a href="user-projects.html">Our Projects</a> page.</div>
+          <div id="userPieChartEmpty" class="chart-subtitle" style="display:none;margin-top:14px;">No active admin projects yet. Once the admin adds a live project, its funding goal will appear here.</div>
         </div>
       </div>
 
@@ -123,9 +123,9 @@
           <div class="chart-header">
             <div>
               <div class="chart-title">Project Funding Overview</div>
-              <div class="chart-subtitle">Budget allocation across all projects</div>
+              <div class="chart-subtitle">Target amount and payment status for each visible project</div>
             </div>
-            <a href="user-projects.html" class="view-all" style="font-size:0.82rem;">Manage Projects &rarr;</a>
+            <a href="user-projects.html" class="view-all" style="font-size:0.82rem;">View Projects &rarr;</a>
           </div>
           <div id="projectFundingBars" style="margin-top:8px;">
             <div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No projects yet. Add projects to see funding progress.</div>
@@ -176,7 +176,7 @@
             </div>
             <div class="col-12 col-md-4">
               <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Combined Project Budget</div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:6px">Combined Funding Goals</div>
                 <div style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="aboutTotalBudget">Rs 0.00</div>
               </div>
             </div>

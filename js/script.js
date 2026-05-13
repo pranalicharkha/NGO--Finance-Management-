@@ -959,15 +959,17 @@ async function initUserDashboardPage() {
         const ngos = ngoData.ngos || [];
         const donations = donationData.transactions || [];
         const allProjects = ngos.flatMap(ngo => (ngo.projects || []).map(p => ({ ...p })));
-        const totalBudget = ngos.reduce((sum, ngo) => sum + Number(ngo.totals?.totalBudget || 0), 0);
+        const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(project.status));
+        const totalBudget = visibleProjects.reduce((sum, project) => sum + Number(project.budget || 0), 0);
+        const totalDonatedByUser = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
         const activeCount = allProjects.filter(p => p.status === "active").length;
         const completedCount = allProjects.filter(p => p.status === "completed").length;
         const plannedCount = allProjects.filter(p => p.status === "planned").length;
 
         // Stat cards
-        setText("userProjectCount", String(allProjects.length));
-        setText("userTotalBudget", formatCurrency(totalBudget));
+        setText("userProjectCount", String(activeCount));
+        setText("userTotalBudget", formatCurrency(totalDonatedByUser));
         setText("userCompletedCount", String(completedCount));
         setText("userActiveInfo", activeCount + " active, " + plannedCount + " planned");
 
@@ -978,7 +980,7 @@ async function initUserDashboardPage() {
 
         // ===== 1. BUDGET BY FOCUS AREA (Doughnut) =====
         const focusMap = {};
-        allProjects.forEach(p => {
+        visibleProjects.forEach(p => {
             const area = p.focus_area || "General";
             focusMap[area] = (focusMap[area] || 0) + Number(p.budget || 0);
         });
@@ -997,8 +999,7 @@ async function initUserDashboardPage() {
                     datasets: [{
                         data: pieValues,
                         backgroundColor: ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"],
-                        borderWidth: 2,
-                        borderColor: "var(--card-bg)"
+                        borderWidth: 0
                     }]
                 },
                 options: {
@@ -1017,12 +1018,12 @@ async function initUserDashboardPage() {
 
         // ===== 2. PROJECT FUNDING PROGRESS BARS =====
         if (fundingContainer) {
-            if (!allProjects.length) {
-                fundingContainer.innerHTML = '<div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No projects yet. Add projects to see funding progress.</div>';
+            if (!visibleProjects.length) {
+                fundingContainer.innerHTML = '<div class="chart-subtitle" style="color:var(--text-muted);padding:20px 0;">No active or planned admin projects yet.</div>';
             } else {
-                const maxBudget = Math.max(...allProjects.map(p => Number(p.budget || 0)), 1);
+                const maxBudget = Math.max(...visibleProjects.map(p => Number(p.budget || 0)), 1);
                 const colors = ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"];
-                fundingContainer.innerHTML = allProjects.map((project, i) => {
+                fundingContainer.innerHTML = visibleProjects.map((project, i) => {
                     const budget = Number(project.budget || 0);
                     const paymentStatus = String(project.payment_status || "pending").toLowerCase();
                     const isPaid = paymentStatus === "paid";
@@ -1438,8 +1439,7 @@ async function initUserDonationsPage() {
                 datasets: [{
                     data: values,
                     backgroundColor: ["#1a56db", "#0f6e4d", "#d97706", "#10b981", "#7c3aed", "#0891b2"],
-                    borderColor: "var(--surface)",
-                    borderWidth: 2
+                    borderWidth: 0
                 }]
             },
             options: {

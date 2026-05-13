@@ -438,15 +438,15 @@ router.get("/transactions", (req, res) => {
                     COALESCE(MAX(i.category), 'Donation') AS category,
                     COALESCE(MAX(i.source), 'Project funding') AS source,
                     COALESCE(MAX(i.payment_method), p.payment_method, 'bank_transfer') AS payment_method,
-                    p.budget AS amount,
+                    p.target_amount AS amount,
                     MAX(i.description) AS description,
                     p.id AS project_id,
                     ? AS user_id,
                     u.name AS donor_name,
                     u.email AS donor_email,
-                    p.project_name,
+                    p.name AS project_name,
                     p.focus_area AS project_focus_area,
-                    p.budget AS project_budget,
+                    p.target_amount AS project_budget,
                     p.status AS project_status,
                     p.payment_method AS project_payment_method,
                     p.payment_status AS project_payment_status,
@@ -459,9 +459,9 @@ router.get("/transactions", (req, res) => {
                 ${projectDonationFilters.whereSql}
                 GROUP BY
                     p.id,
-                    p.project_name,
+                    p.name,
                     p.focus_area,
-                    p.budget,
+                    p.target_amount,
                     p.status,
                     p.payment_method,
                     p.payment_status,
@@ -472,7 +472,7 @@ router.get("/transactions", (req, res) => {
                     u.email
                 ORDER BY COALESCE(MAX(i.date), p.start_date, p.created_at, DATE('now')) DESC, p.id DESC
             `;
-            incomeResults = db.prepare(sql).all(userId, userId, userId, ...projectDonationFilters.params);
+            incomeResults = db.prepare(sql).all(userId, userId, ...projectDonationFilters.params);
         } else if (shouldFetchIncome) {
             const sql = `
                 SELECT
@@ -487,9 +487,9 @@ router.get("/transactions", (req, res) => {
                     i.user_id,
                     u.name AS donor_name,
                     u.email AS donor_email,
-                    p.project_name,
+                    p.name AS project_name,
                     p.focus_area AS project_focus_area,
-                    p.budget AS project_budget,
+                    p.target_amount AS project_budget,
                     p.status AS project_status,
                     p.payment_method AS project_payment_method,
                     p.payment_status AS project_payment_status,
