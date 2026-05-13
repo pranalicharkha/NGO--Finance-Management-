@@ -72,7 +72,7 @@ app.get("/admin", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "admin-login.html"));
 });
 
-app.get("/admin/dashboard", (req, res) => {
+app.get("/admin-dashboard", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "dashboard.html"));
 });
 

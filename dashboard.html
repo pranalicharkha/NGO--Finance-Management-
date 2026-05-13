@@ -67,7 +67,7 @@
 </div>
 
 <div class="row g-3 section-gap">
-<div class="col-12 col-lg-8">
+<div class="col-12">
 <div class="chart-card">
 <div class="chart-header">
 <div><h5 class="chart-title">Monthly Income vs Expense</h5><div class="chart-subtitle">Compare cash inflow and spending month by month.</div></div>
@@ -76,19 +76,103 @@
 <div style="height:320px"><canvas id="dashboardTrendChart"></canvas></div>
 </div>
 </div>
-<div class="col-12 col-lg-4">
-<div class="chart-card">
-<div class="chart-header"><div><h5 class="chart-title">Expense Category Share</h5><div class="chart-subtitle">See where NGO funds are being used most.</div></div></div>
-<div style="height:320px"><canvas id="dashboardCategoryChart"></canvas></div>
-</div>
-</div>
 </div>
 
-<div class="row g-3 section-gap">
-<div class="col-12 col-lg-4"><div class="chart-card"><div class="chart-title mb-3">Top Expense Category</div><div class="card-value" id="topExpenseCategory">No expense data</div><div class="chart-subtitle" id="topExpenseCategoryAmount">Rs 0.00</div></div></div>
-<div class="col-12 col-lg-4"><div class="chart-card"><div class="chart-title mb-3">Top Payment Method</div><div class="card-value" id="topPaymentMethod">Not available</div><div class="chart-subtitle" id="topPaymentMethodAmount">Rs 0.00</div></div></div>
-<div class="col-12 col-lg-4"><div class="chart-card"><div class="chart-title mb-3">NGO Insight</div><p class="chart-subtitle" style="font-size:0.9rem;line-height:1.8">Use this dashboard to spot spending concentration, month-to-month variation, and recent entries that may require review.</p></div></div>
+<!-- ===== Analytics Pie Charts Section ===== -->
+<div class="row g-3 section-gap" id="analyticsSection">
+  <!-- Income Pie Chart -->
+  <div class="col-12 col-lg-6">
+    <div class="chart-card" style="border-top: 3px solid #0f6e4d;">
+      <div class="chart-header">
+        <div>
+          <h5 class="chart-title" style="color:#0f6e4d;"><i class="bi bi-pie-chart-fill me-2"></i>Income by Payment Method</h5>
+          <div class="chart-subtitle">Distribution of income across payment channels.</div>
+        </div>
+        <span class="chart-badge" style="background:rgba(15,110,77,0.12);color:#0f6e4d;">Live</span>
+      </div>
+      <div style="height:280px; position:relative;">
+        <canvas id="incomePieChart"></canvas>
+        <div id="incomePieEmpty" style="display:none;text-align:center;color:var(--text-muted);padding-top:100px;font-size:0.9rem;">No income data yet</div>
+      </div>
+      <div id="incomePieLegend" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+    </div>
+  </div>
+
+  <!-- Expense Pie Chart -->
+  <div class="col-12 col-lg-6">
+    <div class="chart-card" style="border-top: 3px solid #dc2626;">
+      <div class="chart-header">
+        <div>
+          <h5 class="chart-title" style="color:#dc2626;"><i class="bi bi-pie-chart-fill me-2"></i>Expense by Category</h5>
+          <div class="chart-subtitle">Where NGO funds are being spent.</div>
+        </div>
+        <span class="chart-badge" style="background:rgba(220,38,38,0.10);color:#dc2626;">Live</span>
+      </div>
+      <div style="height:280px; position:relative;">
+        <canvas id="expensePieChart"></canvas>
+        <div id="expensePieEmpty" style="display:none;text-align:center;color:var(--text-muted);padding-top:100px;font-size:0.9rem;">No expense data yet</div>
+      </div>
+      <div id="expensePieLegend" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+    </div>
+  </div>
 </div>
+
+<!-- ===== Date-wise Financial Summary ===== -->
+<div class="row g-3 section-gap">
+  <div class="col-12">
+    <div class="chart-card" style="border-top: 3px solid #1a56db;">
+      <div class="chart-header" style="flex-wrap:wrap;gap:12px;">
+        <div>
+          <h5 class="chart-title"><i class="bi bi-bar-chart-steps me-2"></i>Financial Summary</h5>
+          <div class="chart-subtitle">Filtered totals and cash flow by period.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="summary-filter-btn active" data-range="all" id="sfAll">All Time</button>
+          <button class="summary-filter-btn" data-range="today" id="sfToday">Today</button>
+          <button class="summary-filter-btn" data-range="week" id="sfWeek">This Week</button>
+          <button class="summary-filter-btn" data-range="month" id="sfMonth">This Month</button>
+          <button class="summary-filter-btn" data-range="custom" id="sfCustom">Custom</button>
+          <div id="sfCustomRange" style="display:none;gap:6px;align-items:center;">
+            <input type="date" id="sfFrom" style="border:1.5px solid var(--border);border-radius:6px;padding:5px 8px;font-size:0.82rem;background:var(--surface);color:var(--text);">
+            <span style="color:var(--text-muted)">–</span>
+            <input type="date" id="sfTo" style="border:1.5px solid var(--border);border-radius:6px;padding:5px 8px;font-size:0.82rem;background:var(--surface);color:var(--text);">
+            <button class="summary-filter-btn" id="sfApply">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary stat cards -->
+      <div class="row g-3 mt-1">
+        <div class="col-6 col-xl-3">
+          <div class="stat-card income" style="padding:14px 18px;">
+            <div class="card-label">Filtered Income</div>
+            <div class="card-value" id="sfTotalIncome" style="font-size:1.3rem;">Rs 0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-xl-3">
+          <div class="stat-card expense" style="padding:14px 18px;">
+            <div class="card-label">Filtered Expenses</div>
+            <div class="card-value" id="sfTotalExpense" style="font-size:1.3rem;">Rs 0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-xl-3">
+          <div class="stat-card balance" style="padding:14px 18px;">
+            <div class="card-label">Net Balance</div>
+            <div class="card-value" id="sfNetBalance" style="font-size:1.3rem;">Rs 0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-xl-3">
+          <div class="stat-card" style="padding:14px 18px;border-bottom:3px solid var(--primary)">
+            <div class="card-label">Top Payment Method</div>
+            <div class="card-value" id="sfTopPayment" style="font-size:1.1rem;color:var(--primary);">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 
 <div class="row g-3 section-gap">
 <div class="col-12">

@@ -2,6 +2,33 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
+function buildAnalyticsDateWhere(from, to, column = "date") {
+    const normalizedColumn = `date(${column})`;
+
+    if (from && to) {
+        return {
+            where: `WHERE ${normalizedColumn} >= date(?) AND ${normalizedColumn} <= date(?)`,
+            params: [from, to]
+        };
+    }
+
+    if (from) {
+        return {
+            where: `WHERE ${normalizedColumn} >= date(?)`,
+            params: [from]
+        };
+    }
+
+    if (to) {
+        return {
+            where: `WHERE ${normalizedColumn} <= date(?)`,
+            params: [to]
+        };
+    }
+
+    return { where: "", params: [] };
+}
+
 router.post("/login", (req, res) => {
     const { username, password } = req.body;
 
@@ -274,6 +301,116 @@ router.get("/transactions", (req, res) => {
             success: false,
             message: "Failed to fetch transactions"
         });
+    }
+});
+
+router.get("/analytics/income-sources", (req, res) => {
+    try {
+        const { from, to } = req.query;
+        const { where, params } = buildAnalyticsDateWhere(from, to);
+
+        const byPayment = db.prepare(`
+            SELECT payment_method AS paymentMethod,
+                   COUNT(*) AS count,
+                   IFNULL(SUM(amount), 0) AS total
+            FROM income
+            ${where}
+            GROUP BY payment_method
+            ORDER BY total DESC
+        `).all(...params);
+
+        const totalIncome = db.prepare(`
+            SELECT IFNULL(SUM(amount), 0) AS grand FROM income ${where}
+        `).get(...params).grand || 0;
+
+        res.json({
+            success: true,
+            data: byPayment.map(r => ({
+                label: r.paymentMethod || "Unknown",
+                count: Number(r.count),
+                total: Number(r.total),
+                percentage: totalIncome > 0 ? Math.round((r.total / totalIncome) * 100) : 0
+            })),
+            totalIncome: Number(totalIncome)
+        });
+    } catch (err) {
+        console.error("Income sources analytics error:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch income analytics" });
+    }
+});
+
+router.get("/analytics/expense-categories", (req, res) => {
+    try {
+        const { from, to } = req.query;
+        const { where, params } = buildAnalyticsDateWhere(from, to);
+
+        const byCategory = db.prepare(`
+            SELECT category,
+                   COUNT(*) AS count,
+                   IFNULL(SUM(amount), 0) AS total
+            FROM expense
+            ${where}
+            GROUP BY category
+            ORDER BY total DESC
+        `).all(...params);
+
+        const totalExpense = db.prepare(`
+            SELECT IFNULL(SUM(amount), 0) AS grand FROM expense ${where}
+        `).get(...params).grand || 0;
+
+        res.json({
+            success: true,
+            data: byCategory.map(r => ({
+                label: r.category || "Miscellaneous",
+                count: Number(r.count),
+                total: Number(r.total),
+                percentage: totalExpense > 0 ? Math.round((r.total / totalExpense) * 100) : 0
+            })),
+            totalExpense: Number(totalExpense)
+        });
+    } catch (err) {
+        console.error("Expense categories analytics error:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch expense analytics" });
+    }
+});
+
+router.get("/analytics/summary", (req, res) => {
+    try {
+        const { from, to } = req.query;
+        const { where, params } = buildAnalyticsDateWhere(from, to);
+
+        const incomeTotal = db.prepare(`SELECT IFNULL(SUM(amount),0) AS total FROM income ${where}`).get(...params);
+        const expenseTotal = db.prepare(`SELECT IFNULL(SUM(amount),0) AS total FROM expense ${where}`).get(...params);
+
+        const topPayment = db.prepare(`
+            SELECT payment_method AS method, SUM(amount) AS total
+            FROM income ${where}
+            GROUP BY payment_method ORDER BY total DESC LIMIT 1
+        `).get(...params);
+
+        const dailyCashflow = db.prepare(`
+            SELECT date, SUM(income_amt) AS income, SUM(expense_amt) AS expense FROM (
+                SELECT date, amount AS income_amt, 0 AS expense_amt FROM income ${where}
+                UNION ALL
+                SELECT date, 0 AS income_amt, amount AS expense_amt FROM expense ${where}
+            ) GROUP BY date ORDER BY date DESC LIMIT 30
+        `).all(...params, ...params);
+
+        res.json({
+            success: true,
+            totalIncome: Number(incomeTotal.total),
+            totalExpense: Number(expenseTotal.total),
+            netBalance: Number(incomeTotal.total) - Number(expenseTotal.total),
+            topPaymentMethod: topPayment ? topPayment.method : null,
+            dailyCashflow: dailyCashflow.map(r => ({
+                date: r.date,
+                income: Number(r.income || 0),
+                expense: Number(r.expense || 0)
+            }))
+        });
+    } catch (err) {
+        console.error("Summary analytics error:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch summary" });
     }
 });
 

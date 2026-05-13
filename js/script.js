@@ -1,5 +1,7 @@
 let dashboardTrendChart;
 let dashboardCategoryChart;
+let dashboardIncomePieChart;
+let dashboardExpensePieChart;
 let reportsTrendChart;
 let reportsIncomeMixChart;
 let reportsExpenseMixChart;
@@ -72,6 +74,13 @@ function normalizeDateValue(value) {
     const year = parsed.getFullYear();
     const month = String(parsed.getMonth() + 1).padStart(2, "0");
     const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function formatLocalDateValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
 }
 
@@ -429,7 +438,7 @@ function renderRecentActivity(transactions = []) {
                 </div>
                 <div class="act-info">
                     <div>${item.title}</div>
-                    <div>${formatDate(item.date)} â€¢ ${item.category}</div>
+                    <div>${formatDate(item.date)} &nbsp;|&nbsp; ${item.category}</div>
                 </div>
                 <div class="${isIncome ? "pos" : "neg"}">${isIncome ? "+" : "-"}${formatCurrency(item.amount)}</div>
             </div>
@@ -437,22 +446,197 @@ function renderRecentActivity(transactions = []) {
     }).join("");
 }
 
+// ── Pie Chart Renderer ──────────────────────────────────
+const PIE_COLORS = ['#0f6e4d','#1a56db','#d97706','#dc2626','#7c3aed','#0891b2','#059669','#ea580c','#4f46e5','#0284c7'];
+
+function renderPieChart(canvasId, emptyId, legendId, chartRef, items, total, type) {
+    const canvas  = document.getElementById(canvasId);
+    const emptyEl = document.getElementById(emptyId);
+    const legendEl= document.getElementById(legendId);
+    if (!canvas) return chartRef;
+
+    if (!items.length) {
+        if (emptyEl) { emptyEl.style.display = 'block'; canvas.style.display = 'none'; }
+        return chartRef;
+    }
+    if (emptyEl) { emptyEl.style.display = 'none'; canvas.style.display = ''; }
+
+    if (chartRef) chartRef.destroy();
+
+    const labels = items.map(d => formatPaymentMethod(d.label));
+    const values = items.map(d => d.total);
+    const colors = items.map((_, i) => PIE_COLORS[i % PIE_COLORS.length]);
+
+    chartRef = new Chart(canvas, {
+        type: 'pie',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: { animateRotate: true, duration: 900 },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
+                            return ` ${formatCurrency(ctx.parsed)} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Custom legend
+    if (legendEl) {
+        legendEl.innerHTML = items.map((d, i) => `
+            <span class="pie-legend-pill">
+                <span class="pie-legend-dot" style="background:${colors[i]}"></span>
+                ${formatPaymentMethod(d.label)} — ${formatCurrency(d.total)} (${d.percentage}%)
+            </span>
+        `).join('');
+    }
+
+    return chartRef;
+}
+
+// ── Date Range Builder ───────────────────────────────────
+function buildDateRange(rangeKey) {
+    const now = new Date();
+    let from, to;
+    if (rangeKey === 'today') {
+        from = to = formatLocalDateValue(now);
+    } else if (rangeKey === 'week') {
+        const weekStart = new Date(now);
+        const dayOfWeek = weekStart.getDay();
+        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        weekStart.setDate(weekStart.getDate() - daysFromMonday);
+        from = formatLocalDateValue(weekStart);
+        to   = formatLocalDateValue(now);
+    } else if (rangeKey === 'month') {
+        from = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+        to   = formatLocalDateValue(now);
+    } else {
+        // 'all' — no date restriction
+        from = null; to = null;
+    }
+    return { from, to };
+}
+
+// ── Load Analytics Summary (income + expense pie + summary) ──
+async function loadDashboardAnalytics(range = 'all', customFrom, customTo) {
+    let from, to;
+    if (range === 'custom' && customFrom && customTo) {
+        from = customFrom; to = customTo;
+    } else {
+        ({ from, to } = buildDateRange(range));
+    }
+
+    const qs = from && to ? `?from=${from}&to=${to}` : '';
+
+    try {
+        const [incData, expData, sumData] = await Promise.all([
+            apiFetchJson(`/admin/analytics/income-sources${qs}`),
+            apiFetchJson(`/admin/analytics/expense-categories${qs}`),
+            apiFetchJson(`/admin/analytics/summary${qs}`)
+        ]);
+
+        // Render income pie
+        dashboardIncomePieChart = renderPieChart(
+            'incomePieChart', 'incomePieEmpty', 'incomePieLegend',
+            dashboardIncomePieChart, incData.data || [], incData.totalIncome || 0, 'income'
+        );
+
+        // Render expense pie
+        dashboardExpensePieChart = renderPieChart(
+            'expensePieChart', 'expensePieEmpty', 'expensePieLegend',
+            dashboardExpensePieChart, expData.data || [], expData.totalExpense || 0, 'expense'
+        );
+
+        // Update summary cards
+        setText('sfTotalIncome',  formatCurrency(sumData.totalIncome));
+        setText('sfTotalExpense', formatCurrency(sumData.totalExpense));
+        setText('sfNetBalance',   formatCurrency(sumData.netBalance));
+        setText('sfTopPayment',   formatPaymentMethod(sumData.topPaymentMethod) || '—');
+
+        // Colour net balance
+        const balEl = document.getElementById('sfNetBalance');
+        if (balEl) balEl.style.color = sumData.netBalance >= 0 ? 'var(--primary)' : 'var(--danger)';
+
+    } catch (err) {
+        console.error('Analytics load error:', err);
+    }
+}
+
+// ── Summary filter button wiring ─────────────────────────
+function initSummaryFilters() {
+    const filterBtns = ['sfAll', 'sfToday', 'sfWeek', 'sfMonth', 'sfCustom']
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
+
+    const customRange = document.getElementById('sfCustomRange');
+    const applyBtn    = document.getElementById('sfApply');
+
+    function setActive(activeBtn) {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const range = btn.dataset.range;
+            setActive(btn);
+
+            if (range === 'custom') {
+                if (customRange) customRange.style.display = 'flex';
+                // Don't load yet — wait for Apply
+            } else {
+                if (customRange) customRange.style.display = 'none';
+                loadDashboardAnalytics(range);
+            }
+        });
+    });
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            const from = document.getElementById('sfFrom')?.value;
+            const to   = document.getElementById('sfTo')?.value;
+            if (!from || !to) {
+                alert('Please select both a start and end date.');
+                return;
+            }
+            if (from > to) {
+                alert('Start date cannot be after end date.');
+                return;
+            }
+            loadDashboardAnalytics('custom', from, to);
+        });
+    }
+}
+
 async function initDashboard() {
     try {
         const data = await apiFetchJson("/admin/dashboard");
-        setText("totalIncome", formatCurrency(data.totalIncome));
+        setText("totalIncome",  formatCurrency(data.totalIncome));
         setText("totalExpense", formatCurrency(data.totalExpense));
         setText("totalBalance", formatCurrency(data.balance));
-        setText("totalUsers", String(data.totalUsers || 0));
-        setText("topExpenseCategory", data.categoryExpense?.[0]?.category || "No expense data");
-        setText("topExpenseCategoryAmount", formatCurrency(data.categoryExpense?.[0]?.total || 0));
-        setText("topPaymentMethod", formatPaymentMethod(data.paymentMethods?.[0]?.paymentMethod));
-        setText("topPaymentMethodAmount", formatCurrency(data.paymentMethods?.[0]?.total || 0));
+        setText("totalUsers",   String(data.totalUsers || 0));
         renderDashboardCharts(data);
         renderRecentActivity(data.recentTransactions || []);
     } catch (error) {
         console.error("Dashboard load error:", error);
     }
+
+    // Load analytics pie charts + summary (default: all-time so charts are always populated)
+    await loadDashboardAnalytics('all');
+    initSummaryFilters();
+
+    // Auto-refresh every 60 s
+    setInterval(() => {
+        const activeBtn = document.querySelector('.summary-filter-btn.active');
+        const range = activeBtn?.dataset.range || 'all';
+        if (range !== 'custom') loadDashboardAnalytics(range);
+    }, 60000);
 }
 
 async function initIncomePage() {
