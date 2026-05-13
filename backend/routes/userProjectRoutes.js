@@ -162,69 +162,81 @@ router.post("/projects/:id/donate", (req, res) => {
         });
     }
 
-    // Check if project exists and is active
-    const checkProjectSql = "SELECT * FROM projects WHERE id = ? AND status = 'active'";
-    
-    db.query(checkProjectSql, [projectId], (err, projectResults) => {
-        if (err) {
-            console.log(err);
-            return res.status(500).json({
-                success: false,
-                message: "Failed to verify project"
-            });
-        }
+    try {
+        const project = db.prepare(`
+            SELECT *
+            FROM projects
+            WHERE id = ? AND LOWER(COALESCE(status, '')) IN ('active', 'planned')
+            LIMIT 1
+        `).get(projectId);
 
-        if (projectResults.length === 0) {
+        if (!project) {
             return res.status(404).json({
                 success: false,
                 message: "Project not found or not accepting donations"
             });
         }
 
-        // Insert donation record
-        const donationSql = `
-            INSERT INTO project_donations 
-            (project_id, user_id, amount, donation_date, donor_name, donor_email, payment_method, message, anonymous, payment_status) 
-            VALUES (?, ?, ?, date('now'), ?, ?, ?, ?, ?, ?)
-        `;
 
-        db.query(donationSql, [
-            projectId, 
-            user_id || null, 
-            Number(amount), 
-            donor_name.trim(), 
-            donor_email.trim(), 
-            payment_method, 
-            message ? message.trim() : null, 
-            Number(anonymous),
-            'pending'
-        ], (err, result) => {
-            if (err) {
-                console.log(err);
-                return res.status(500).json({
-                    success: false,
-                    message: "Failed to process donation"
-                });
-            }
+        const saveDonation = db.transaction(() => {
+            const donationResult = db.prepare(`
+                INSERT INTO project_donations
+                (project_id, user_id, amount, donation_date, donor_name, donor_email, payment_method, message, anonymous)
+                VALUES (?, ?, ?, date('now'), ?, ?, ?, ?, ?)
+            `).run(
+                projectId,
+                user_id || null,
+                Number(amount),
+                donor_name.trim(),
+                donor_email.trim(),
+                payment_method,
+                message ? message.trim() : null,
+                Number(anonymous)
+            );
 
-            // Update project's current amount
-            const updateProjectSql = "UPDATE projects SET current_amount = current_amount + ? WHERE id = ?";
-            
-            db.query(updateProjectSql, [Number(amount), projectId], (updateErr) => {
-                if (updateErr) {
-                    console.log("Failed to update project amount:", updateErr);
-                    // Don't fail the response, but log the error
-                }
-            });
+            db.prepare(`
+                INSERT INTO income
+                (user_id, date, category, source, payment_method, amount, description, project_id)
+                VALUES (?, date('now'), ?, ?, ?, ?, ?, ?)
+            `).run(
+                user_id || null,
+                project.focus_area || project.category || "Donation",
+                donor_name.trim(),
+                payment_method,
+                Number(amount),
+                message ? message.trim() : null,
+                projectId
+            );
 
-            res.status(201).json({
-                success: true,
-                message: "Donation processed successfully",
-                donationId: result.insertId,
-                amount: Number(amount)
-            });
+
+            db.prepare(`
+                UPDATE projects
+                SET current_amount = COALESCE((
+                    SELECT SUM(pd.amount)
+                    FROM project_donations pd
+                    WHERE pd.project_id = projects.id
+                ), 0)
+                WHERE id = ?
+            `).run(projectId);
+
+            return donationResult.lastInsertRowid;
         });
-    });
+
+        const donationId = saveDonation();
+
+        res.status(201).json({
+            success: true,
+            message: "Donation processed successfully",
+            donationId,
+            amount: Number(amount)
+        });
+    } catch (error) {
+        console.log("Donation processing error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to process donation"
+        });
+    }
 });
 
 // =======================
