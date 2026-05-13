@@ -424,45 +424,17 @@ function renderRecentActivity(transactions = []) {
         const isIncome = item.type === "income";
         return `
             <div class="activity-item">
+                <div class="act-icon ${isIncome ? "badge-income" : "badge-expense"}">
+                    <i class="bi ${isIncome ? "bi-arrow-down-left" : "bi-arrow-up-right"}"></i>
+                </div>
                 <div class="act-info">
                     <div>${item.title}</div>
-                    <div>${formatDate(item.date)} | ${item.category}</div>
+                    <div>${formatDate(item.date)} â€¢ ${item.category}</div>
                 </div>
                 <div class="${isIncome ? "pos" : "neg"}">${isIncome ? "+" : "-"}${formatCurrency(item.amount)}</div>
             </div>
         `;
     }).join("");
-}
-
-function exportElementAsPdf(container, options) {
-    if (!container || typeof html2pdf === "undefined") return Promise.resolve();
-
-    // Render inside an invisible in-viewport host (offscreen elements can produce blank PDFs).
-    const host = document.createElement("div");
-    host.style.position = "fixed";
-    host.style.left = "0";
-    host.style.top = "0";
-    host.style.width = "210mm";
-    host.style.maxHeight = "100vh";
-    host.style.overflow = "auto";
-    host.style.opacity = "0.01";
-    host.style.pointerEvents = "none";
-    host.style.background = "#ffffff";
-    host.style.zIndex = "9999";
-
-    container.style.width = "190mm";
-    container.style.margin = "0 auto";
-    container.style.background = "#ffffff";
-    host.appendChild(container);
-    document.body.appendChild(host);
-
-    return html2pdf()
-        .set(options)
-        .from(container)
-        .save()
-        .finally(() => {
-            host.remove();
-        });
 }
 
 async function initDashboard() {
@@ -900,111 +872,97 @@ async function initReportsPage() {
     btnFilter?.addEventListener("click", loadReports);
     btnReset?.addEventListener("click", () => { filterType.value = "all"; filterMonth.value = ""; filterSearch.value = ""; loadReports(); });
     btnExport?.addEventListener("click", async () => {
-        const jsPdf = window.jspdf?.jsPDF;
-        if (!jsPdf) {
+        if (typeof html2pdf === 'undefined') {
             alert("PDF generator is still loading.");
             return;
         }
-
+        
         const transactions = getFilteredTransactions(reportTransactionsCache);
         if (!transactions.length) {
             alert("No data to export.");
             return;
         }
 
-        const doc = new jsPdf({ unit: "mm", format: "a4", orientation: "portrait" });
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 10;
-        const tableWidth = pageWidth - margin * 2;
-        const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-        const colWidths = {
-            date: 24,
-            type: 18,
-            source: 60,
-            category: 50,
-            amount: tableWidth - (24 + 18 + 60 + 50)
-        };
+        const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-        const drawHeader = (startY) => {
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(16);
-            doc.text("Transaction Ledger", margin, startY);
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            doc.text(`Generated On: ${dateStr}`, margin, startY + 6);
-            doc.text(`Total Records: ${transactions.length}`, margin, startY + 11);
-            return startY + 16;
-        };
+        // Header
+        doc.setFontSize(18);
+        doc.setTextColor(15, 110, 77);
+        doc.text('Transaction Ledger', doc.internal.pageSize.getWidth() / 2, 18, { align: 'center' });
 
-        const drawTableHead = (y) => {
-            doc.setFillColor(241, 245, 249);
-            doc.rect(margin, y, tableWidth, 8, "F");
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(9);
-            let x = margin + 1.5;
-            doc.text("Date", x, y + 5.5);
-            x += colWidths.date;
-            doc.text("Type", x, y + 5.5);
-            x += colWidths.type;
-            doc.text("Source / Title", x, y + 5.5);
-            x += colWidths.source;
-            doc.text("Category", x, y + 5.5);
-            x += colWidths.category;
-            doc.text("Amount", x + colWidths.amount - 2, y + 5.5, { align: "right" });
-            return y + 8;
-        };
+        doc.setFontSize(10);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Generated On: ${dateStr}  |  Total Records: ${transactions.length}`, doc.internal.pageSize.getWidth() / 2, 26, { align: 'center' });
 
-        let y = drawHeader(14);
-        y = drawTableHead(y);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
+        // Summary totals
+        const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount || 0), 0);
+        const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount || 0), 0);
+        const netBalance = totalIncome - totalExpense;
 
-        for (const t of transactions) {
-            const values = {
-                date: String(formatDate(t.date) || "-"),
-                type: String(t.type || "-").toUpperCase(),
-                source: String(t.source || t.title || "-"),
-                category: String(t.category || "-"),
-                amount: String(formatCurrency(t.amount || 0))
-            };
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        const pw = doc.internal.pageSize.getWidth();
+        doc.text(`Total Income: Rs ${totalIncome.toLocaleString('en-IN', {minimumFractionDigits:2})}`, 14, 34);
+        doc.text(`Total Expenses: Rs ${totalExpense.toLocaleString('en-IN', {minimumFractionDigits:2})}`, pw / 3 + 10, 34);
+        doc.setTextColor(netBalance >= 0 ? 15 : 220, netBalance >= 0 ? 110 : 38, netBalance >= 0 ? 77 : 38);
+        doc.text(`Net Balance: Rs ${netBalance.toLocaleString('en-IN', {minimumFractionDigits:2})}`, (pw / 3) * 2 + 10, 34);
 
-            const dateLines = doc.splitTextToSize(values.date, colWidths.date - 3);
-            const typeLines = doc.splitTextToSize(values.type, colWidths.type - 3);
-            const sourceLines = doc.splitTextToSize(values.source, colWidths.source - 3);
-            const categoryLines = doc.splitTextToSize(values.category, colWidths.category - 3);
-            const amountLines = doc.splitTextToSize(values.amount, colWidths.amount - 3);
+        // Table
+        const head = [['#', 'Date', 'Ref / ID', 'Type', 'Source / Title', 'Category', 'Project', 'Payment Method', 'Description', 'Amount']];
+        const body = transactions.map((t, i) => [
+            i + 1,
+            formatDate(t.date),
+            t.receipt_number || t.id || '-',
+            (t.type || '').charAt(0).toUpperCase() + (t.type || '').slice(1),
+            t.source || t.title || '-',
+            t.category || '-',
+            t.project_name || t.project_focus_area || '-',
+            formatPaymentMethod(t.payment_method),
+            t.description || '-',
+            `Rs ${Number(t.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}`
+        ]);
 
-            const maxLines = Math.max(dateLines.length, typeLines.length, sourceLines.length, categoryLines.length, amountLines.length);
-            const rowHeight = Math.max(7, maxLines * 4 + 2);
+        doc.autoTable({
+            startY: 40,
+            head: head,
+            body: body,
+            styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+            headStyles: { fillColor: [15, 110, 77], textColor: 255, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [241, 245, 249] },
+            columnStyles: {
+                0: { cellWidth: 8 },
+                1: { cellWidth: 22 },
+                2: { cellWidth: 16 },
+                3: { cellWidth: 18 },
+                4: { cellWidth: 35 },
+                5: { cellWidth: 25 },
+                6: { cellWidth: 30 },
+                7: { cellWidth: 28 },
+                8: { cellWidth: 45 },
+                9: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'body' && data.column.index === 3) {
+                    const val = (data.cell.raw || '').toLowerCase();
+                    data.cell.styles.textColor = val === 'income' ? [15, 110, 77] : [220, 38, 38];
+                }
+            },
+            margin: { left: 10, right: 10 }
+        });
 
-            if (y + rowHeight > pageHeight - margin) {
-                doc.addPage();
-                y = drawHeader(14);
-                y = drawTableHead(y);
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(8.5);
-            }
-
-            doc.setDrawColor(220, 220, 220);
-            doc.rect(margin, y, tableWidth, rowHeight);
-
-            let x = margin + 1.5;
-            doc.text(dateLines, x, y + 4.5);
-            x += colWidths.date;
-            doc.text(typeLines, x, y + 4.5);
-            x += colWidths.type;
-            doc.text(sourceLines, x, y + 4.5);
-            x += colWidths.source;
-            doc.text(categoryLines, x, y + 4.5);
-            x += colWidths.category;
-            doc.text(amountLines, x + colWidths.amount - 2, y + 4.5, { align: "right" });
-
-            y += rowHeight;
+        // Footer on each page
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(160, 160, 160);
+            doc.text(`Page ${i} of ${pageCount} — Nidigo Finance System`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
         }
 
-        doc.save(`Transaction_Ledger_${new Date().toISOString().split("T")[0]}.pdf`);
+        doc.save(`Transaction_Ledger_${new Date().toISOString().split('T')[0]}.pdf`);
     });
 
     loadReports();
@@ -2919,7 +2877,7 @@ window.generatePDF = async function() {
 
     const reportContainer = document.createElement("div");
     reportContainer.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: auto;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; width: 800px; max-width: 100%; margin: auto;">
             <!-- 1. Header -->
             <div style="text-align: center; border-bottom: 3px solid #0f6e4d; padding-bottom: 20px; margin-bottom: 20px;">
                 <h1 style="margin: 0; color: #0f6e4d; font-size: 28px;">Nidigo Finance System</h1>
@@ -3022,11 +2980,10 @@ window.generatePDF = async function() {
         filename:     `NGO_Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'] }
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    await exportElementAsPdf(reportContainer, opt);
+    html2pdf().set(opt).from(reportContainer.innerHTML).save();
 };
 
 document.addEventListener("DOMContentLoaded", () => {
