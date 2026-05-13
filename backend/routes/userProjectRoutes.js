@@ -2,6 +2,26 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
+function normalizeProject(project) {
+    const normalizedTarget = Number(project.target_amount || project.budget || 0);
+    const normalizedTotalDonations = Number(project.total_donations || 0);
+
+    return {
+        ...project,
+        name: project.name || project.project_name || "Untitled Project",
+        project_name: project.project_name || project.name || "Untitled Project",
+        category: project.category || project.focus_area || "General",
+        focus_area: project.focus_area || project.category || "General",
+        target_amount: normalizedTarget,
+        budget: Number(project.budget || project.target_amount || 0),
+        current_amount: Number(project.current_amount || normalizedTotalDonations || 0),
+        total_donations: normalizedTotalDonations,
+        payment_status: project.payment_status || "pending",
+        progress_percentage: normalizedTarget > 0 ?
+            (normalizedTotalDonations / normalizedTarget * 100).toFixed(1) : 0
+    };
+}
+
 // =======================
 // Get Active Projects for Users
 // GET /user/projects
@@ -12,7 +32,7 @@ router.get("/projects", (req, res) => {
                (SELECT COUNT(*) FROM project_donations WHERE project_id = p.id) as donation_count,
                (SELECT SUM(amount) FROM project_donations WHERE project_id = p.id) as total_donations
         FROM projects p 
-        WHERE p.status = 'active'
+        WHERE LOWER(COALESCE(p.status, '')) IN ('active', 'planned')
         ORDER BY p.created_at DESC
     `;
 
@@ -25,14 +45,7 @@ router.get("/projects", (req, res) => {
             });
         }
 
-        const projects = results.map(project => ({
-            ...project,
-            target_amount: Number(project.target_amount || 0),
-            current_amount: Number(project.current_amount || 0),
-            total_donations: Number(project.total_donations || 0),
-            progress_percentage: project.target_amount > 0 ? 
-                ((project.total_donations || 0) / project.target_amount * 100).toFixed(1) : 0
-        }));
+        const projects = results.map(normalizeProject);
 
         res.json({
             success: true,
@@ -53,7 +66,7 @@ router.get("/projects/:id", (req, res) => {
                (SELECT COUNT(*) FROM project_donations WHERE project_id = p.id) as donation_count,
                (SELECT SUM(amount) FROM project_donations WHERE project_id = p.id) as total_donations
         FROM projects p 
-        WHERE p.id = ? AND p.status = 'active'
+        WHERE p.id = ? AND LOWER(COALESCE(p.status, '')) IN ('active', 'planned')
     `;
 
     db.query(projectSql, [projectId], (err, projectResults) => {
@@ -72,14 +85,7 @@ router.get("/projects/:id", (req, res) => {
             });
         }
 
-        const project = {
-            ...projectResults[0],
-            target_amount: Number(projectResults[0].target_amount || 0),
-            current_amount: Number(projectResults[0].current_amount || 0),
-            total_donations: Number(projectResults[0].total_donations || 0),
-            progress_percentage: projectResults[0].target_amount > 0 ? 
-                ((projectResults[0].total_donations || 0) / projectResults[0].target_amount * 100).toFixed(1) : 0
-        };
+        const project = normalizeProject(projectResults[0]);
 
         // Get recent donations for this project
         const donationsSql = `

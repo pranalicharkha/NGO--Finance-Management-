@@ -100,40 +100,40 @@ function buildDonationFilters(query, userId) {
     };
 }
 
-function buildProjectDonationFilters(query) {
-    const clauses = ["COALESCE(p.payment_status, 'pending') = 'paid'"];
-    const params = [];
+function buildProjectDonationFilters(query, userId) {
+    const clauses = ["pd.user_id = ?"];
+    const params = [userId];
 
     if (query.date && isValidDate(query.date)) {
-        clauses.push("COALESCE(i.date, p.start_date, p.created_at) = ?");
+        clauses.push("pd.donation_date = ?");
         params.push(String(query.date));
     }
 
     if (query.dateFrom && isValidDate(query.dateFrom)) {
-        clauses.push("COALESCE(i.date, p.start_date, p.created_at) >= ?");
+        clauses.push("pd.donation_date >= ?");
         params.push(String(query.dateFrom));
     }
 
     if (query.dateTo && isValidDate(query.dateTo)) {
-        clauses.push("COALESCE(i.date, p.start_date, p.created_at) <= ?");
+        clauses.push("pd.donation_date <= ?");
         params.push(String(query.dateTo));
     }
 
     const projectId = Number(query.projectId || query.project_id);
     if (projectId) {
-        clauses.push("p.id = ?");
+        clauses.push("pd.project_id = ?");
         params.push(projectId);
     }
 
     const minAmount = Number(query.minAmount || query.amountMin);
     if (Number.isFinite(minAmount) && minAmount > 0) {
-        clauses.push("p.budget >= ?");
+        clauses.push("pd.amount >= ?");
         params.push(minAmount);
     }
 
     const maxAmount = Number(query.maxAmount || query.amountMax);
     if (Number.isFinite(maxAmount) && maxAmount > 0) {
-        clauses.push("p.budget <= ?");
+        clauses.push("pd.amount <= ?");
         params.push(maxAmount);
     }
 
@@ -415,7 +415,7 @@ router.get("/transactions", (req, res) => {
 
         const expenseFilters = buildTransactionFilters(req.query);
         const donationFilters = buildDonationFilters(req.query, userId);
-        const projectDonationFilters = buildProjectDonationFilters(req.query);
+        const projectDonationFilters = buildProjectDonationFilters(req.query, userId);
         const useProjectLinkedDonations = String(req.query.projectLinked || "").toLowerCase() === "true";
 
         expenseFilters.params.unshift(userId);
@@ -433,46 +433,32 @@ router.get("/transactions", (req, res) => {
         if (shouldFetchIncome && useProjectLinkedDonations) {
             const sql = `
                 SELECT
-                    p.id,
-                    COALESCE(MAX(i.date), p.start_date, p.created_at, DATE('now')) AS date,
-                    COALESCE(MAX(i.category), 'Donation') AS category,
-                    COALESCE(MAX(i.source), 'Project funding') AS source,
-                    COALESCE(MAX(i.payment_method), p.payment_method, 'bank_transfer') AS payment_method,
-                    p.target_amount AS amount,
-                    MAX(i.description) AS description,
-                    p.id AS project_id,
-                    ? AS user_id,
-                    u.name AS donor_name,
-                    u.email AS donor_email,
-                    p.name AS project_name,
-                    p.focus_area AS project_focus_area,
-                    p.target_amount AS project_budget,
+                    pd.id,
+                    pd.donation_date AS date,
+                    COALESCE(p.focus_area, p.category, 'Donation') AS category,
+                    COALESCE(p.name, p.project_name, 'Project Donation') AS source,
+                    COALESCE(pd.payment_method, p.payment_method, 'bank_transfer') AS payment_method,
+                    pd.amount AS amount,
+                    pd.message AS description,
+                    pd.project_id,
+                    pd.user_id,
+                    COALESCE(pd.donor_name, u.name) AS donor_name,
+                    COALESCE(pd.donor_email, u.email) AS donor_email,
+                    COALESCE(p.project_name, p.name, 'Project') AS project_name,
+                    COALESCE(p.focus_area, p.category, 'General') AS project_focus_area,
+                    COALESCE(p.budget, p.target_amount, 0) AS project_budget,
                     p.status AS project_status,
                     p.payment_method AS project_payment_method,
-                    p.payment_status AS project_payment_status,
+                    COALESCE(pd.payment_status, p.payment_status, 'pending') AS project_payment_status,
                     p.start_date AS project_start_date,
                     p.end_date AS project_end_date
-                FROM projects p
-                INNER JOIN ngos n ON n.id = p.ngo_id
-                INNER JOIN users u ON u.id = ?
-                LEFT JOIN income i ON i.project_id = p.id AND i.user_id = ?
+                FROM project_donations pd
+                INNER JOIN projects p ON p.id = pd.project_id
+                LEFT JOIN users u ON u.id = pd.user_id
                 ${projectDonationFilters.whereSql}
-                GROUP BY
-                    p.id,
-                    p.name,
-                    p.focus_area,
-                    p.target_amount,
-                    p.status,
-                    p.payment_method,
-                    p.payment_status,
-                    p.start_date,
-                    p.end_date,
-                    p.created_at,
-                    u.name,
-                    u.email
-                ORDER BY COALESCE(MAX(i.date), p.start_date, p.created_at, DATE('now')) DESC, p.id DESC
+                ORDER BY pd.donation_date DESC, pd.id DESC
             `;
-            incomeResults = db.prepare(sql).all(userId, userId, ...projectDonationFilters.params);
+            incomeResults = db.prepare(sql).all(...projectDonationFilters.params);
         } else if (shouldFetchIncome) {
             const sql = `
                 SELECT

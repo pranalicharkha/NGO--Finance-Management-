@@ -951,16 +951,15 @@ async function initUserDashboardPage() {
     if (!recentContainer) return;
 
     try {
-        const [ngoData, donationData] = await Promise.all([
-            apiFetchJson(`/user/ngos?userId=${getUserId()}`),
+        const [projectData, donationData] = await Promise.all([
+            apiFetchJson("/user/projects"),
             apiFetchJson(`/user/transactions?type=income&projectLinked=true&userId=${getUserId()}`)
         ]);
 
-        const ngos = ngoData.ngos || [];
         const donations = donationData.transactions || [];
-        const allProjects = ngos.flatMap(ngo => (ngo.projects || []).map(p => ({ ...p })));
-        const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(project.status));
-        const totalBudget = visibleProjects.reduce((sum, project) => sum + Number(project.budget || 0), 0);
+        const allProjects = projectData.projects || [];
+        const visibleProjects = allProjects.filter((project) => ["active", "planned"].includes(String(project.status || "").toLowerCase()));
+        const totalBudget = visibleProjects.reduce((sum, project) => sum + Number(project.budget || project.target_amount || 0), 0);
         const totalDonatedByUser = donations.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
         const activeCount = allProjects.filter(p => p.status === "active").length;
@@ -981,8 +980,8 @@ async function initUserDashboardPage() {
         // ===== 1. BUDGET BY FOCUS AREA (Doughnut) =====
         const focusMap = {};
         visibleProjects.forEach(p => {
-            const area = p.focus_area || "General";
-            focusMap[area] = (focusMap[area] || 0) + Number(p.budget || 0);
+            const area = p.focus_area || p.category || "General";
+            focusMap[area] = (focusMap[area] || 0) + Number(p.budget || p.target_amount || 0);
         });
         const pieLabels = Object.keys(focusMap);
         const pieValues = Object.values(focusMap);
@@ -1024,7 +1023,7 @@ async function initUserDashboardPage() {
                 const maxBudget = Math.max(...visibleProjects.map(p => Number(p.budget || 0)), 1);
                 const colors = ["#1a56db", "#0f6e4d", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#14b8a6", "#f59e0b"];
                 fundingContainer.innerHTML = visibleProjects.map((project, i) => {
-                    const budget = Number(project.budget || 0);
+                    const budget = Number(project.budget || project.target_amount || 0);
                     const paymentStatus = String(project.payment_status || "pending").toLowerCase();
                     const isPaid = paymentStatus === "paid";
                     const pct = maxBudget > 0 ? Math.round((budget / maxBudget) * 100) : 0;
@@ -1033,7 +1032,7 @@ async function initUserDashboardPage() {
                     return `
                         <div style="margin-bottom:18px;">
                             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
-                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name)}</div>
+                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);">${statusDot} ${escapeHtml(project.project_name || project.name || "Project")}</div>
                                 <div style="font-size:0.78rem;color:${isPaid ? "var(--primary)" : "var(--gold)"};white-space:nowrap;margin-left:12px;font-weight:700;">${escapeHtml(formatPaymentStatus(paymentStatus))}</div>
                             </div>
                             <div style="background:var(--surface-2);border-radius:999px;height:22px;overflow:hidden;border:1px solid var(--border);position:relative;">
@@ -1041,7 +1040,7 @@ async function initUserDashboardPage() {
                                     ${pct >= 15 ? '<span style="font-size:0.7rem;font-weight:700;color:white;">' + formatCurrency(budget) + '</span>' : ''}
                                 </div>
                             </div>
-                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || "General")} \u2022 ${formatProjectStatus(project.status)} \u2022 ${escapeHtml(formatPaymentMethod(project.payment_method))}</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(project.focus_area || project.category || "General")} \u2022 ${formatProjectStatus(project.status)} \u2022 ${escapeHtml(formatPaymentMethod(project.payment_method))}</div>
                         </div>
                     `;
                 }).join("");
@@ -1106,12 +1105,9 @@ async function initUserDashboardPage() {
         }
 
         // ===== Recent project activity =====
-        const recentProjects = ngos
-            .flatMap((ngo) => (ngo.projects || []).map((project) => ({
-                ngoName: ngo.ngo_name,
-                project
-            })))
-            .sort((a, b) => b.project.id - a.project.id)
+        const recentProjects = visibleProjects
+            .slice()
+            .sort((a, b) => b.id - a.id)
             .slice(0, 5);
 
         if (!recentProjects.length) {
@@ -1126,12 +1122,12 @@ async function initUserDashboardPage() {
         } else {
             const statusIcons = { active: "bi-play-circle-fill", completed: "bi-check-circle-fill", planned: "bi-clock-fill", on_hold: "bi-pause-circle-fill" };
             const statusColors = { active: "#1a56db", completed: "#10b981", planned: "#d97706", on_hold: "#dc2626" };
-            recentContainer.innerHTML = recentProjects.map((item) => `
+            recentContainer.innerHTML = recentProjects.map((project) => `
                 <div class="activity-item">
-                    <div class="act-icon" style="background:rgba(26,86,219,0.1);color:${statusColors[item.project.status] || '#1a56db'}"><i class="bi ${statusIcons[item.project.status] || 'bi-folder2-open'}"></i></div>
+                    <div class="act-icon" style="background:rgba(26,86,219,0.1);color:${statusColors[project.status] || '#1a56db'}"><i class="bi ${statusIcons[project.status] || 'bi-folder2-open'}"></i></div>
                     <div class="act-info">
-                        <div class="act-title">${escapeHtml(item.project.project_name)}</div>
-                        <div class="act-date">${escapeHtml(formatProjectStatus(item.project.status))} \u2022 Budget: ${formatCurrency(item.project.budget || 0)}</div>
+                        <div class="act-title">${escapeHtml(project.project_name || project.name || "Project")}</div>
+                        <div class="act-date">${escapeHtml(formatProjectStatus(project.status))} \u2022 Goal: ${formatCurrency(project.budget || project.target_amount || 0)}</div>
                     </div>
                 </div>
             `).join("");
@@ -3491,10 +3487,6 @@ async function initUserProjectsPage() {
                             <div class="meta-item">
                                 <i class="bi bi-calendar"></i>
                                 <span>${formatDate(project.start_date)} - ${formatDate(project.end_date)}</span>
-                            </div>
-                            <div class="meta-item">
-                                <i class="bi bi-people"></i>
-                                <span>${project.beneficiaries_count || 0} beneficiaries</span>
                             </div>
                             <div class="meta-item">
                                 <i class="bi bi-heart"></i>

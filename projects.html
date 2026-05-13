@@ -225,25 +225,30 @@
   </style>
 </head>
 <body data-page="projects">
-<aside class="sidebar" style="background:linear-gradient(180deg,#0d2e4a 0%,var(--accent) 100%)">
+<aside class="sidebar">
   <div class="sidebar-brand">
     <div class="brand-icon"><i class="bi bi-bank2"></i></div>
-    <div class="brand-text"><p class="brand-name">Nidigo</p><span class="brand-sub">Admin Portal</span></div>
+    <div class="brand-text">
+      <p class="brand-name">Nidigo</p>
+      <span class="brand-sub">Finance System</span>
+    </div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">Overview</div>
-    <a href="dashboard.html" class="nav-link"><i class="bi bi-house"></i><span>Dashboard</span></a>
-    <div class="nav-section-label">Transactions</div>
-    <a href="income.html" class="nav-link"><i class="bi bi-arrow-down-circle"></i><span>Income</span></a>
-    <a href="expense.html" class="nav-link"><i class="bi bi-arrow-up-circle"></i><span>Expense</span></a>
+    <a href="dashboard.html" class="nav-link"><i class="bi bi-grid-1x2"></i><span>Dashboard</span></a>
+    <div class="nav-section-label">Finance</div>
+    <a href="income.html" class="nav-link"><i class="bi bi-arrow-down-circle"></i><span>Add Income</span></a>
+    <a href="expense.html" class="nav-link"><i class="bi bi-arrow-up-circle"></i><span>Add Expense</span></a>
+    <div class="nav-section-label">Tools</div>
     <a href="calendar.html" class="nav-link"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
+    <a href="reports.html" class="nav-link"><i class="bi bi-file-earmark-bar-graph"></i><span>Reports</span></a>
     <div class="nav-section-label">Management</div>
     <a href="users.html" class="nav-link"><i class="bi bi-people"></i><span>Users</span></a>
     <a href="projects.html" class="nav-link active"><i class="bi bi-folder2-open"></i><span>Projects</span></a>
-    <div class="nav-section-label">Reports</div>
-    <a href="reports.html" class="nav-link"><i class="bi bi-file-earmark-bar-graph"></i><span>Reports</span></a>
   </nav>
-  <div class="sidebar-footer"><a href="index.html" class="nav-link btn-logout"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a></div>
+  <div class="sidebar-footer">
+    <a href="#" class="nav-link btn-logout" onclick="logoutAdmin()"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a>
+  </div>
 </aside>
 
 <header class="topbar">
